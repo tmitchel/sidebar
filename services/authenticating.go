@@ -9,15 +9,11 @@ import (
 	"github.com/tmitchel/sidebar/store"
 )
 
-type Authenticater interface {
-	Validate(string, string) (*sidebar.User, error)
-}
-
 type auth struct {
 	DB store.Database
 }
 
-func NewAuthenticater(db store.Database) (Authenticater, error) {
+func NewAuthenticater(db store.Database) (sidebar.Authenticater, error) {
 	return &auth{
 		DB: db,
 	}, nil

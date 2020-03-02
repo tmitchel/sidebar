@@ -13,7 +13,7 @@ func TestUserFromModel(t *testing.T) {
 		ID:          1,
 		DisplayName: "test-user",
 		Email:       "test-email",
-		Password:    "test-password",
+		Password:    []byte("test-password"),
 	}
 
 	n := store.UserFromModel(m)
@@ -29,7 +29,7 @@ func TestUserToModel(t *testing.T) {
 		ID:          1,
 		DisplayName: "test-user",
 		Email:       "test-email",
-		Password:    "test-password",
+		Password:    []byte("test-password"),
 	}
 
 	n := store.UserFromModel(m)

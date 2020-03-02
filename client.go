@@ -25,6 +25,7 @@ type client struct {
 	conn *websocket.Conn
 	send chan WebSocketMessage
 	hub  *chathub
+	User User
 }
 
 func (c *client) Digest(msg WebSocketMessage) {

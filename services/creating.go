@@ -8,18 +8,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type Creater interface {
-	CreateUser(*sidebar.User) (*sidebar.User, error)
-	CreateChannel(*sidebar.Channel) (*sidebar.Channel, error)
-	CreateSpinoff(*sidebar.Spinoff) (*sidebar.Spinoff, error)
-	CreateMessage(*sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error)
-}
-
 type creater struct {
 	DB store.Database
 }
 
-func NewCreater(db store.Database) (Creater, error) {
+func NewCreater(db store.Database) (sidebar.Creater, error) {
 	return &creater{
 		DB: db,
 	}, nil

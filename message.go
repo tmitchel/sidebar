@@ -3,7 +3,8 @@ package sidebar
 // event codes
 const (
 	EventMessage      = 1
-	EventStartSpinOff = 2
+	EventTyping       = 2
+	EventStartSpinOff = 3
 )
 
 // WebSocketMessage represents a message sent over
