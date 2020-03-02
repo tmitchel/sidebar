@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	host     = "db"
+	host     = "localhost"
 	port     = 5432
 	psqluser = "postgres"
 	password = "example"
@@ -31,6 +31,10 @@ type Database interface {
 	GetChannel(int) (*sidebar.Channel, error)
 	GetMessage(int) (*sidebar.WebSocketMessage, error)
 	GetSpinoff(int) (*sidebar.Spinoff, error)
+
+	UserForAuth(string) (*sidebar.User, error)
+
+	Close()
 }
 
 type database struct {
@@ -57,6 +61,10 @@ func New() (Database, error) {
 	}
 
 	return &database{db}, nil
+}
+
+func (d *database) Close() {
+	d.DB.Close()
 }
 
 func (d *database) CreateUser(u *sidebar.User) (*sidebar.User, error) {
@@ -86,6 +94,18 @@ func (d *database) GetUser(id int) (*sidebar.User, error) {
 	}
 
 	return u.ToModel(), nil
+}
+
+func (d *database) UserForAuth(email string) (*sidebar.User, error) {
+	var authUser userForAuth
+	row := psql.Select("id", "password").
+		From("users").Where(sq.Eq{"email": email}).RunWith(d).QueryRow()
+	err := row.Scan(&authUser.ID, &authUser.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	return authUser.ToModel(), nil
 }
 
 func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {

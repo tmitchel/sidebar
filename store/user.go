@@ -8,7 +8,7 @@ type user struct {
 	ID          int    `db:"id"`
 	DisplayName string `db:"display_name"`
 	Email       string `db:"email"`
-	Password    string `db:"password"`
+	Password    []byte `db:"password"`
 }
 
 func UserFromModel(u *sidebar.User) *user {
@@ -25,6 +25,20 @@ func (u *user) ToModel() *sidebar.User {
 		ID:          u.ID,
 		DisplayName: u.DisplayName,
 		Email:       u.Email,
+		Password:    u.Password,
+	}
+}
+
+type userForAuth struct {
+	ID       int    `db:"id"`
+	Password []byte `db:"password"`
+}
+
+func (u *userForAuth) ToModel() *sidebar.User {
+	return &sidebar.User{
+		ID:          u.ID,
+		DisplayName: "-",
+		Email:       "-",
 		Password:    u.Password,
 	}
 }

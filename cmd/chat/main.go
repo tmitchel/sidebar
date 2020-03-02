@@ -3,10 +3,10 @@ package main
 import (
 	"net/http"
 
-	"github.com/tmitchel/chat"
+	"github.com/tmitchel/sidebar"
 )
 
 func main() {
-	server := chat.NewServer()
+	server := sidebar.NewServer()
 	http.ListenAndServe(":8080", server.Serve())
 }
