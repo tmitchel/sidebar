@@ -10,6 +10,9 @@ import (
 
 type Creater interface {
 	CreateUser(*sidebar.User) (*sidebar.User, error)
+	CreateChannel(*sidebar.Channel) (*sidebar.Channel, error)
+	CreateSpinoff(*sidebar.Spinoff) (*sidebar.Spinoff, error)
+	CreateMessage(*sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error)
 }
 
 type creater struct {
@@ -30,4 +33,16 @@ func (c *creater) CreateUser(u *sidebar.User) (*sidebar.User, error) {
 
 	u.Password = hashed
 	return c.DB.CreateUser(u)
+}
+
+func (c *creater) CreateChannel(ch *sidebar.Channel) (*sidebar.Channel, error) {
+	return c.DB.CreateChannel(ch)
+}
+
+func (c *creater) CreateSpinoff(s *sidebar.Spinoff) (*sidebar.Spinoff, error) {
+	return c.DB.CreateSpinoff(s)
+}
+
+func (c *creater) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error) {
+	return c.DB.CreateMessage(m)
 }
