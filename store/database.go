@@ -194,8 +194,8 @@ func migrations(db *sql.DB) error {
 	DROP TABLE IF EXISTS users CASCADE;
 	CREATE TABLE users (
 		id SERIAL,
-		display_name TEXT NOT NULL,
-		email TEXT NOT NULL,
+		display_name TEXT UNIQUE NOT NULL,
+		email TEXT UNIQUE NOT NULL,
 		password TEXT NOT NULL,
 		PRIMARY KEY(id)
 	);`
@@ -213,7 +213,7 @@ func migrations(db *sql.DB) error {
 	DROP TABLE IF EXISTS channels CASCADE;
 	CREATE TABLE channels (
 		id SERIAL,
-		display_name TEXT NOT NULL,
+		display_name TEXT UNIQUE NOT NULL,
 		PRIMARY KEY(id)
 	);`
 
@@ -221,7 +221,7 @@ func migrations(db *sql.DB) error {
 	DROP TABLE IF EXISTS spinoffs CASCADE;
 	CREATE TABLE spinoffs (
 		id SERIAL,
-		display_name TEXT NOT NULL,
+		display_name TEXT UNIQUE NOT NULL,
 		parent_id INT NOT NULL,
 		PRIMARY KEY(id),
 		FOREIGN KEY (parent_ID) REFERENCES channels(id) ON DELETE CASCADE
