@@ -6,9 +6,13 @@ jobs:
   build:
     docker:
       # specify the version
-      - image: circleci/golang:1.13
+      - image: circleci/golang:1.13.8
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: example
+            POSTGRES_DB: sidebar
 
-      # Specify service dependencies here if necessary
+            # Specify service dependencies here if necessary
       # CircleCI maintains a library of pre-built images
       # documented at https://circleci.com/docs/2.0/circleci-images/
       - image: circleci/postgres:11.7
