@@ -81,7 +81,7 @@ func (c *client) writePump() {
 			}
 
 			if err := c.conn.WriteJSON(message); err != nil {
-				logrus.Errorf("Error writing to websocket", err)
+				logrus.Errorf("Error writing to websocket %v", err)
 			}
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))

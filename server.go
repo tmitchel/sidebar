@@ -125,7 +125,7 @@ func (s *server) HandleWS() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			logrus.Fatalf("unable to upgrade connection", err)
+			logrus.Fatalf("unable to upgrade connection %v", err)
 		}
 
 		user, ok := r.Context().Value(ctxKey("user_info")).(User)
