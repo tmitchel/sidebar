@@ -8,7 +8,10 @@ type webSocketMessage struct {
 	Content string `db:"content"`
 }
 
-func MessageFromModel(m *sidebar.WebSocketMessage) *webSocketMessage {
+// messageFromModel converts the normal sidebar.WebSocketMessage model
+// into a webSocketMessage which has properties only useful for the
+// database.
+func messageFromModel(m *sidebar.WebSocketMessage) *webSocketMessage {
 	return &webSocketMessage{
 		ID:      m.ID,
 		Event:   m.Event,

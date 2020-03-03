@@ -12,7 +12,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// type for context.WithValue keys
 type ctxKey string
+
+// Server returns something that can handle http requests.
+type Server interface {
+	Serve() *mux.Router
+}
 
 type server struct {
 	hub    *chathub
@@ -22,7 +28,11 @@ type server struct {
 	Create Creater
 }
 
-func NewServer(auth Authenticater, create Creater) *server {
+// NewServer receives all services needed to provide functionality
+// then uses those services to spin-up an HTTP server. A hub for
+// handling Websocket connections is also started in a goroutine.
+// These things are wrapped in the server and returned.
+func NewServer(auth Authenticater, create Creater) Server {
 	hub := NewChathub()
 
 	s := &server{
@@ -44,10 +54,14 @@ func NewServer(auth Authenticater, create Creater) *server {
 	return s
 }
 
+// Return just the mux.Router to be used in http.ListenAndServe.
 func (s *server) Serve() *mux.Router {
 	return s.router
 }
 
+// Login returns an http.HandlerFunc to deal with user attempts to
+// log in. The user is authenticated and then a cookie is stored with
+// information for later.
 func (s *server) Login() http.HandlerFunc {
 	gob.Register(User{})
 	type auth struct {
@@ -75,6 +89,7 @@ func (s *server) Login() http.HandlerFunc {
 	}
 }
 
+// requireAuth provides an authentication middleware
 func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		session, _ := s.store.Get(r, "chat-cook")
@@ -98,6 +113,8 @@ func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// HandleWS provides a handler for getting Websocket connections setup
+// and registering a new client with the hub.
 func (s *server) HandleWS() http.HandlerFunc {
 	var upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,

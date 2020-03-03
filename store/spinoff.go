@@ -8,7 +8,10 @@ type spinoff struct {
 	Parent int    `db:"parent_id"`
 }
 
-func SpinoffFromModel(s *sidebar.Spinoff) *spinoff {
+// spinoffFromModel converts the normal sidebar.Spinoff model
+// into a spinoff which has properties only useful for the
+// database.
+func spinoffFromModel(s *sidebar.Spinoff) *spinoff {
 	return &spinoff{
 		ID:     s.ID,
 		Name:   s.Name,

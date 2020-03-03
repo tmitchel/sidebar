@@ -1,11 +1,10 @@
-package store_test
+package store
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tmitchel/sidebar"
-	"github.com/tmitchel/sidebar/store"
 )
 
 func TestMessageFromModel(t *testing.T) {
@@ -15,7 +14,7 @@ func TestMessageFromModel(t *testing.T) {
 		Content: "test-content",
 	}
 
-	n := store.MessageFromModel(m)
+	n := messageFromModel(m)
 
 	assert.Equal(t, m.ID, n.ID)
 	assert.Equal(t, m.Event, n.Event)
@@ -23,14 +22,13 @@ func TestMessageFromModel(t *testing.T) {
 }
 
 func TestMessageToModel(t *testing.T) {
-	m := &sidebar.WebSocketMessage{
+	n := &webSocketMessage{
 		ID:      1,
 		Event:   1,
 		Content: "test-content",
 	}
 
-	n := store.MessageFromModel(m)
-	m = n.ToModel()
+	m := n.ToModel()
 
 	assert.Equal(t, n.ID, m.ID)
 	assert.Equal(t, n.Event, m.Event)

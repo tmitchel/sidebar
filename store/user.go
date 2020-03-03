@@ -11,7 +11,10 @@ type user struct {
 	Password    []byte `db:"password"`
 }
 
-func UserFromModel(u *sidebar.User) *user {
+// userFromModel converts the normal sidebar.User model
+// into a user which has properties only useful for the
+// database.
+func userFromModel(u *sidebar.User) *user {
 	return &user{
 		ID:          u.ID,
 		DisplayName: u.DisplayName,

@@ -12,6 +12,8 @@ type creater struct {
 	DB store.Database
 }
 
+// NewCreater wraps a database connection with a *creater that
+// implements the sidebar.Creater interface.
 func NewCreater(db store.Database) (sidebar.Creater, error) {
 	return &creater{
 		DB: db,

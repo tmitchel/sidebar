@@ -22,6 +22,7 @@ const (
 
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
+// Database provides methods to query the database.
 type Database interface {
 	CreateUser(*sidebar.User) (*sidebar.User, error)
 	CreateChannel(*sidebar.Channel) (*sidebar.Channel, error)
@@ -46,6 +47,8 @@ type database struct {
 	*sql.DB
 }
 
+// New connects to the postgres database, runs migrations,
+// and returns that connection.
 func New() (Database, error) {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
 		"password=%s dbname=%s sslmode=disable",
@@ -68,13 +71,14 @@ func New() (Database, error) {
 	return &database{db}, nil
 }
 
+// Close closes the database.
 func (d *database) Close() {
 	d.DB.Close()
 }
 
 func (d *database) CreateUser(u *sidebar.User) (*sidebar.User, error) {
 	var id int
-	duser := UserFromModel(u)
+	duser := userFromModel(u)
 	err := psql.Insert("users").
 		Columns("display_name", "email", "password").
 		Values(duser.DisplayName, duser.Email, duser.Password).
@@ -185,7 +189,7 @@ func (d *database) CheckToken(token string) (*sidebar.User, error) {
 
 func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 	var id int
-	dchannel := ChannelFromModel(c)
+	dchannel := channelFromModel(c)
 	err := psql.Insert("channels").
 		Columns("display_name").Values(dchannel.Name).
 		Suffix("RETURNING id").
@@ -212,7 +216,7 @@ func (d *database) GetChannel(id int) (*sidebar.Channel, error) {
 
 func (d *database) CreateSpinoff(s *sidebar.Spinoff) (*sidebar.Spinoff, error) {
 	var id int
-	dspinoff := SpinoffFromModel(s)
+	dspinoff := spinoffFromModel(s)
 	err := psql.Insert("spinoff").
 		Columns("display_name", "parent_id").Values(dspinoff.Name, dspinoff.Parent).
 		Suffix("RETURNING id").
@@ -239,7 +243,7 @@ func (d *database) GetSpinoff(id int) (*sidebar.Spinoff, error) {
 
 func (d *database) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error) {
 	var id int
-	dmessage := MessageFromModel(m)
+	dmessage := messageFromModel(m)
 	err := psql.Insert("messages").
 		Columns("content", "event").Values(dmessage.Content, dmessage.Event).
 		Suffix("RETURNING id").
@@ -305,16 +309,16 @@ func migrations(db *sql.DB) error {
 	userChannelQuery := `
 	DROP TABLE IF EXISTS user_channel CASCADE;
 	CREATE TABLE user_channel (
-		user_id INT REFERENCES users (user_id) ON UPDATE CASCADE,
-		channel_id INT REFERENCES channels (channel_id) ON UPDATE CASCADE,
+		user_id INT REFERENCES users (id) ON UPDATE CASCADE,
+		channel_id INT REFERENCES channels (id) ON UPDATE CASCADE,
 		CONSTRAINT user_channel_pkey PRIMARY KEY (user_id, channel_id)
 	);`
 
 	userSpinoffQuery := `
 	DROP TABLE IF EXISTS user_spinoff CASCADE;
 	CREATE TABLE user_spinoff (
-		user_id INT REFERENCES users (user_id) ON UPDATE CASCADE,
-		spinoff_id INT REFERENCES spinoffs (spinoff_id) ON UPDATE CASCADE,
+		user_id INT REFERENCES users (id) ON UPDATE CASCADE,
+		spinoff_id INT REFERENCES spinoffs (id) ON UPDATE CASCADE,
 		CONSTRAINT user_spinoff_pkey PRIMARY KEY (user_id, spinoff_id)
 	);`
 
@@ -323,7 +327,7 @@ func migrations(db *sql.DB) error {
 	CREATE TABLE tokens (
 		token TEXT NOT NULL,
 		user_id INT NOT NULL,
-		created_at TIMESTAMPZ NOT NULL DEFAULT NOW(),
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		PRIMARY KEY(token),
 		FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 	);`

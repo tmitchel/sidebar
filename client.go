@@ -28,6 +28,8 @@ type client struct {
 	User User
 }
 
+// Digest decides how to handle a WebSocketMessage based
+// on the event type.
 func (c *client) Digest(msg WebSocketMessage) {
 	switch msg.Event {
 	case 1:

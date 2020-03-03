@@ -7,6 +7,8 @@ type chathub struct {
 	unregister chan *client
 }
 
+// NewChathub creates a chathub to handle client Websocket
+// connections and broadcasting messages.
 func NewChathub() *chathub {
 	return &chathub{
 		clients:    make(map[*client]bool),

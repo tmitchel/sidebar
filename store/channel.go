@@ -9,7 +9,10 @@ type channel struct {
 	Name string `db:"display_name"`
 }
 
-func ChannelFromModel(c *sidebar.Channel) *channel {
+// channelFromModel converts the normal sidebar.Channel model
+// into a channel which has properties only useful for the
+// database.
+func channelFromModel(c *sidebar.Channel) *channel {
 	return &channel{
 		ID:   c.ID,
 		Name: c.Name,

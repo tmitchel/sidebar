@@ -13,6 +13,8 @@ type auth struct {
 	DB store.Database
 }
 
+// NewAuthenticater wraps a database connection with an *auth that
+// implements the sidebar.Authenticater interface.
 func NewAuthenticater(db store.Database) (sidebar.Authenticater, error) {
 	return &auth{
 		DB: db,

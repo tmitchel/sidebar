@@ -1,11 +1,10 @@
-package store_test
+package store
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tmitchel/sidebar"
-	"github.com/tmitchel/sidebar/store"
 )
 
 func TestSpinoffFromModel(t *testing.T) {
@@ -15,7 +14,7 @@ func TestSpinoffFromModel(t *testing.T) {
 		Parent: 1,
 	}
 
-	n := store.SpinoffFromModel(m)
+	n := spinoffFromModel(m)
 
 	assert.Equal(t, m.ID, n.ID)
 	assert.Equal(t, m.Name, n.Name)
@@ -23,14 +22,13 @@ func TestSpinoffFromModel(t *testing.T) {
 }
 
 func TestSpinoffToModel(t *testing.T) {
-	m := &sidebar.Spinoff{
+	n := &spinoff{
 		ID:     1,
 		Name:   "test-spinoff",
 		Parent: 1,
 	}
 
-	n := store.SpinoffFromModel(m)
-	m = n.ToModel()
+	m := n.ToModel()
 
 	assert.Equal(t, n.ID, m.ID)
 	assert.Equal(t, n.Name, m.Name)

@@ -1,11 +1,10 @@
-package store_test
+package store
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tmitchel/sidebar"
-	"github.com/tmitchel/sidebar/store"
 )
 
 func TestUserFromModel(t *testing.T) {
@@ -16,7 +15,7 @@ func TestUserFromModel(t *testing.T) {
 		Password:    []byte("test-password"),
 	}
 
-	n := store.UserFromModel(m)
+	n := userFromModel(m)
 
 	assert.Equal(t, m.ID, n.ID)
 	assert.Equal(t, m.DisplayName, n.DisplayName)
@@ -25,15 +24,14 @@ func TestUserFromModel(t *testing.T) {
 }
 
 func TestUserToModel(t *testing.T) {
-	m := &sidebar.User{
+	n := &user{
 		ID:          1,
 		DisplayName: "test-user",
 		Email:       "test-email",
 		Password:    []byte("test-password"),
 	}
 
-	n := store.UserFromModel(m)
-	m = n.ToModel()
+	m := n.ToModel()
 
 	assert.Equal(t, n.ID, m.ID)
 	assert.Equal(t, n.DisplayName, m.DisplayName)
