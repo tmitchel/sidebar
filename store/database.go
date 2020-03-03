@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/pkg/errors"
@@ -32,7 +33,11 @@ type Database interface {
 	GetMessage(int) (*sidebar.WebSocketMessage, error)
 	GetSpinoff(int) (*sidebar.Spinoff, error)
 
+	GetUsersInChannel(int) ([]*sidebar.User, error)
+	GetUsersInSpinoff(int) ([]*sidebar.User, error)
+
 	UserForAuth(string) (*sidebar.User, error)
+	CheckToken(string) (*sidebar.User, error)
 
 	Close()
 }
@@ -96,6 +101,52 @@ func (d *database) GetUser(id int) (*sidebar.User, error) {
 	return u.ToModel(), nil
 }
 
+func (d *database) GetUsersInChannel(id int) ([]*sidebar.User, error) {
+	var users []*sidebar.User
+	rows, err := psql.Select("id", "display_name", "email", "password").
+		From("users").Join("user_channel uc ON ( uc.user_id = id )").
+		Where(sq.Eq{"uc.channel_id": id}).RunWith(d).Query()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var u user
+		err := rows.Scan(&u.ID, &u.DisplayName, &u.Email, &u.Password)
+		if err != nil {
+			continue
+		}
+
+		users = append(users, u.ToModel())
+	}
+
+	return users, nil
+}
+
+func (d *database) GetUsersInSpinoff(id int) ([]*sidebar.User, error) {
+	var users []*sidebar.User
+	rows, err := psql.Select("id", "display_name", "email", "password").
+		From("users").Join("user_spinoff us ON ( us.user_id = id )").
+		Where(sq.Eq{"us.spinoff_id": id}).RunWith(d).Query()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var u user
+		err := rows.Scan(&u.ID, &u.DisplayName, &u.Email, &u.Password)
+		if err != nil {
+			continue
+		}
+
+		users = append(users, u.ToModel())
+	}
+
+	return users, nil
+}
+
 func (d *database) UserForAuth(email string) (*sidebar.User, error) {
 	var authUser userForAuth
 	row := psql.Select("id", "password").
@@ -106,6 +157,30 @@ func (d *database) UserForAuth(email string) (*sidebar.User, error) {
 	}
 
 	return authUser.ToModel(), nil
+}
+
+func (d *database) CheckToken(token string) (*sidebar.User, error) {
+	var u user
+	var t time.Time
+	err := psql.Select("id", "display_name", "email", "password", "t.created_at").
+		From("users").Join("tokens t ON (t.user_id = id)").
+		Where(sq.Eq{"t.token": token}).
+		RunWith(d).QueryRow().Scan(&u.ID, &u.DisplayName, &u.Email, &u.Password, &t)
+	if err != nil || u.ID == 0 {
+		return nil, errors.New("User doesn't have a token")
+	}
+
+	// this is how I will be able to tell if the token has expired. This will be
+	// lifted into the service layer later.
+	// if t.Add(30 * 24 * time.Hour).After(time.Now()) {
+	// _, err := psql.Delete("tokens").Where(sq.Eq{"token": token}).RunWith(d).Exec()
+	// if err != nil {
+	// 	return nil, errors.New("Unable to delete token")
+	// }
+	// return nil, errors.New("Token has expired")
+	// }
+
+	return u.ToModel(), nil
 }
 
 func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
@@ -227,7 +302,36 @@ func migrations(db *sql.DB) error {
 		FOREIGN KEY (parent_ID) REFERENCES channels(id) ON DELETE CASCADE
 	);`
 
-	queries := []string{userQuery, messageQuery, channelQuery, spinoffQuery}
+	userChannelQuery := `
+	DROP TABLE IF EXISTS user_channel CASCADE;
+	CREATE TABLE user_channel (
+		user_id INT REFERENCES users (user_id) ON UPDATE CASCADE,
+		channel_id INT REFERENCES channels (channel_id) ON UPDATE CASCADE,
+		CONSTRAINT user_channel_pkey PRIMARY KEY (user_id, channel_id)
+	);`
+
+	userSpinoffQuery := `
+	DROP TABLE IF EXISTS user_spinoff CASCADE;
+	CREATE TABLE user_spinoff (
+		user_id INT REFERENCES users (user_id) ON UPDATE CASCADE,
+		spinoff_id INT REFERENCES spinoffs (spinoff_id) ON UPDATE CASCADE,
+		CONSTRAINT user_spinoff_pkey PRIMARY KEY (user_id, spinoff_id)
+	);`
+
+	tokenStoreQuery := `
+	DROP TABLE IF EXISTS tokens CASCADE;	
+	CREATE TABLE tokens (
+		token TEXT NOT NULL,
+		user_id INT NOT NULL,
+		created_at TIMESTAMPZ NOT NULL DEFAULT NOW(),
+		PRIMARY KEY(token),
+		FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+	);`
+
+	queries := []string{
+		userQuery, messageQuery, channelQuery, spinoffQuery, userChannelQuery, userSpinoffQuery,
+		tokenStoreQuery,
+	}
 
 	for _, query := range queries {
 		_, err := db.Exec(query)
