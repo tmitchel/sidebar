@@ -33,7 +33,7 @@ type server struct {
 // handling Websocket connections is also started in a goroutine.
 // These things are wrapped in the server and returned.
 func NewServer(auth Authenticater, create Creater) Server {
-	hub := NewChathub()
+	hub := newChathub()
 
 	s := &server{
 		hub:    hub,
