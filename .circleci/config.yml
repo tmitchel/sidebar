@@ -9,7 +9,9 @@ jobs:
       - image: circleci/golang:1.13.8
         environment:
             POSTGRES_USER: postgres
+        environment:
             POSTGRES_PASSWORD: example
+        environment:
             POSTGRES_DB: sidebar
 
             # Specify service dependencies here if necessary
