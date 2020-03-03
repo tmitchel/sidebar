@@ -34,8 +34,18 @@ type Database interface {
 	GetMessage(int) (*sidebar.WebSocketMessage, error)
 	GetSpinoff(int) (*sidebar.Spinoff, error)
 
+	GetUsers() ([]*sidebar.User, error)
+	GetChannels() ([]*sidebar.Channel, error)
+	GetSpinoffs() ([]*sidebar.Spinoff, error)
+	GetMessages() ([]*sidebar.WebSocketMessage, error)
+
 	GetUsersInChannel(int) ([]*sidebar.User, error)
 	GetUsersInSpinoff(int) ([]*sidebar.User, error)
+
+	GetMessagesInChannel(int) ([]*sidebar.WebSocketMessage, error)
+	GetMessagesInSpinoff(int) ([]*sidebar.WebSocketMessage, error)
+	GetMessagesFromUser(int) ([]*sidebar.WebSocketMessage, error)
+	GetMessagesToUser(int) ([]*sidebar.WebSocketMessage, error)
 
 	UserForAuth(string) (*sidebar.User, error)
 	CheckToken(string) (*sidebar.User, error)
@@ -268,6 +278,182 @@ func (d *database) GetMessage(id int) (*sidebar.WebSocketMessage, error) {
 	return m.ToModel(), nil
 }
 
+func (d *database) GetMessagesInChannel(id int) ([]*sidebar.WebSocketMessage, error) {
+	var messages []*sidebar.WebSocketMessage
+	rows, err := psql.Select("id", "content").From("messages").
+		Join("channels_messages cm ON ( cm.message_id = id )").
+		Where(sq.Eq{"cm.channel_id": id}).Where(sq.Eq{"cm.is_spinoff": false}).
+		RunWith(d).Query()
+	if err != nil {
+		return nil, errors.New("Unable to find any messages")
+	}
+
+	for rows.Next() {
+		var m webSocketMessage
+		err := rows.Scan(&m.ID, &m.Content)
+		if err != nil {
+			return nil, errors.New("Error scanning for message")
+		}
+
+		messages = append(messages, m.ToModel())
+	}
+
+	return messages, nil
+}
+
+func (d *database) GetMessagesInSpinoff(id int) ([]*sidebar.WebSocketMessage, error) {
+	var messages []*sidebar.WebSocketMessage
+	rows, err := psql.Select("id", "content").From("messages").
+		Join("channels_messages cm ON ( cm.message_id = id )").
+		Where(sq.Eq{"cm.channel_id": id}).Where(sq.Eq{"cm.is_spinoff": true}).
+		RunWith(d).Query()
+	if err != nil {
+		return nil, errors.New("Unable to find any messages")
+	}
+
+	for rows.Next() {
+		var m webSocketMessage
+		err := rows.Scan(&m.ID, &m.Content)
+		if err != nil {
+			return nil, errors.New("Error scanning for message")
+		}
+
+		messages = append(messages, m.ToModel())
+	}
+
+	return messages, nil
+}
+
+func (d *database) GetMessagesFromUser(id int) ([]*sidebar.WebSocketMessage, error) {
+	var messages []*sidebar.WebSocketMessage
+	rows, err := psql.Select("id", "content").From("messages").
+		Join("users_messages um ON ( um.message_id = id )").
+		Where(sq.Eq{"um.user_from_id": id}).
+		RunWith(d).Query()
+	if err != nil {
+		return nil, errors.New("Unable to find any messages")
+	}
+
+	for rows.Next() {
+		var m webSocketMessage
+		err := rows.Scan(&m.ID, &m.Content)
+		if err != nil {
+			return nil, errors.New("Error scanning for message")
+		}
+
+		messages = append(messages, m.ToModel())
+	}
+
+	return messages, nil
+}
+
+func (d *database) GetMessagesToUser(id int) ([]*sidebar.WebSocketMessage, error) {
+	var messages []*sidebar.WebSocketMessage
+	rows, err := psql.Select("id", "content").From("messages").
+		Join("users_messages um ON ( um.message_id = id )").
+		Where(sq.Eq{"um.user_to_id": id}).
+		RunWith(d).Query()
+	if err != nil {
+		return nil, errors.New("Unable to find any messages")
+	}
+
+	for rows.Next() {
+		var m webSocketMessage
+		err := rows.Scan(&m.ID, &m.Content)
+		if err != nil {
+			return nil, errors.New("Error scanning for message")
+		}
+
+		messages = append(messages, m.ToModel())
+	}
+
+	return messages, nil
+}
+
+func (d *database) GetUsers() ([]*sidebar.User, error) {
+	var users []*sidebar.User
+	rows, err := psql.Select("id", "email", "display_name", "password").From("users").
+		RunWith(d).Query()
+	if err != nil {
+		return nil, errors.New("Unable to find any users")
+	}
+
+	for rows.Next() {
+		var u user
+		err := rows.Scan(&u.ID, &u.Email, &u.DisplayName, &u.Password)
+		if err != nil {
+			return nil, errors.New("Error scanning users")
+		}
+
+		users = append(users, u.ToModel())
+	}
+
+	return users, nil
+}
+
+func (d *database) GetChannels() ([]*sidebar.Channel, error) {
+	var channels []*sidebar.Channel
+	rows, err := psql.Select("id", "display_name").From("channels").
+		RunWith(d).Query()
+	if err != nil {
+		return nil, errors.New("Unable to find any channels")
+	}
+
+	for rows.Next() {
+		var c channel
+		err := rows.Scan(&c.ID, &c.Name)
+		if err != nil {
+			return nil, errors.New("Error scanning channels")
+		}
+
+		channels = append(channels, c.ToModel())
+	}
+
+	return channels, nil
+}
+
+func (d *database) GetSpinoffs() ([]*sidebar.Spinoff, error) {
+	var spinoffs []*sidebar.Spinoff
+	rows, err := psql.Select("id", "display_name", "parent").From("spinoffs").
+		RunWith(d).Query()
+	if err != nil {
+		return nil, errors.New("Unable to find any spinoffs")
+	}
+
+	for rows.Next() {
+		var d spinoff
+		err := rows.Scan(&d.ID, &d.Name, &d.Parent)
+		if err != nil {
+			return nil, errors.New("Error scanning spinoffs")
+		}
+
+		spinoffs = append(spinoffs, d.ToModel())
+	}
+
+	return spinoffs, nil
+}
+
+func (d *database) GetMessages() ([]*sidebar.WebSocketMessage, error) {
+	var messages []*sidebar.WebSocketMessage
+	rows, err := psql.Select("id", "event", "content").From("messages").
+		RunWith(d).Query()
+	if err != nil {
+		return nil, errors.New("Unable to find any messages")
+	}
+
+	for rows.Next() {
+		var w webSocketMessage
+		err := rows.Scan(&w.ID, &w.Event, &w.Content)
+		if err != nil {
+			return nil, errors.New("Error scanning messages")
+		}
+
+		messages = append(messages, w.ToModel())
+	}
+
+	return messages, nil
+}
+
 func migrations(db *sql.DB) error {
 	userQuery := `
 	DROP TABLE IF EXISTS users CASCADE;
@@ -323,7 +509,7 @@ func migrations(db *sql.DB) error {
 	);`
 
 	tokenStoreQuery := `
-	DROP TABLE IF EXISTS tokens CASCADE;	
+	DROP TABLE IF EXISTS tokens CASCADE;
 	CREATE TABLE tokens (
 		token TEXT NOT NULL,
 		user_id INT NOT NULL,
@@ -332,9 +518,30 @@ func migrations(db *sql.DB) error {
 		FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 	);`
 
+	userMessageQuery := `
+	DROP TABLE IF EXISTS users_messages CASCADE;
+	CREATE TABLE users_messages (
+		user_to_id INT NOT NULL,
+		user_from_id INT NOT NULL,
+		message_id INT NOT NULL,
+		FOREIGN KEY(user_to_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY(user_from_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
+	);`
+
+	channelMessageQuery := `
+	DROP TABLE IF EXISTS channels_messages CASCADE;
+	CREATE TABLE channels_messages (
+		channel_id INT NOT NULL,
+		message_id INT NOT NULL,
+		is_spinoff BOOL DEFAULT FALSE,
+		FOREIGN KEY(channel_id) REFERENCES channels(id) ON DELETE CASCADE,
+		FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
+	);`
+
 	queries := []string{
 		userQuery, messageQuery, channelQuery, spinoffQuery, userChannelQuery, userSpinoffQuery,
-		tokenStoreQuery,
+		tokenStoreQuery, userMessageQuery, channelMessageQuery,
 	}
 
 	for _, query := range queries {
