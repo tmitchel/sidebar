@@ -34,10 +34,6 @@ func (c *creater) CreateChannel(ch *sidebar.Channel) (*sidebar.Channel, error) {
 	return c.DB.CreateChannel(ch)
 }
 
-func (c *creater) CreateSpinoff(s *sidebar.Spinoff) (*sidebar.Spinoff, error) {
-	return c.DB.CreateSpinoff(s)
-}
-
 func (c *creater) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error) {
 	return c.DB.CreateMessage(m)
 }

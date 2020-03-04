@@ -72,18 +72,27 @@ func TestCreateUser(t *testing.T) {
 func TestCreateChannel(t *testing.T) {
 	tests := []*sidebar.Channel{
 		&sidebar.Channel{
-			ID:   1,
-			Name: "name-one",
+			ID:        1,
+			Name:      "name-one",
+			IsSidebar: false,
 		},
 		&sidebar.Channel{
-			ID:   2,
-			Name: "name-two",
+			ID:        2,
+			Name:      "name-two",
+			IsSidebar: false,
+		},
+		&sidebar.Channel{
+			ID:        3,
+			Name:      "name-three",
+			IsSidebar: true,
+			Parent:    2,
 		},
 	}
 	tests_fail := []*sidebar.Channel{
 		&sidebar.Channel{
-			ID:   3,
-			Name: "name-two",
+			ID:        4,
+			Name:      "name-two",
+			IsSidebar: false,
 		},
 	}
 
@@ -95,79 +104,24 @@ func TestCreateChannel(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, test.ID, u.ID)
 		assert.Equal(t, test.Name, u.Name)
+		assert.Equal(t, test.IsSidebar, u.IsSidebar)
 
 		rows := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
-			Select("id", "display_name").
+			Select("id", "display_name", "is_sidebar").
 			From("channels").Where(sq.Eq{"id": test.ID}).
 			RunWith(db).QueryRow()
 		assert.NoError(t, err)
 
 		var dbtest sidebar.Channel
-		err = rows.Scan(&dbtest.ID, &dbtest.Name)
+		err = rows.Scan(&dbtest.ID, &dbtest.Name, &dbtest.IsSidebar)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, dbtest.ID)
 		assert.Equal(t, dbtest.Name, test.Name)
+		assert.Equal(t, dbtest.IsSidebar, test.IsSidebar)
 	}
 
 	for _, test := range tests_fail {
 		u, err := db.CreateChannel(test)
-		assert.Error(t, err)
-		assert.Nil(t, u)
-	}
-}
-
-func TestCreateSpinoff(t *testing.T) {
-	tests := []*sidebar.Spinoff{
-		&sidebar.Spinoff{
-			ID:     1,
-			Name:   "name-one",
-			Parent: 1,
-		},
-		&sidebar.Spinoff{
-			ID:     2,
-			Name:   "name-two",
-			Parent: 1,
-		},
-	}
-	tests_fail := []*sidebar.Spinoff{
-		&sidebar.Spinoff{
-			ID:     3,
-			Name:   "name-two",
-			Parent: 1,
-		},
-	}
-
-	db, err := store.NewWithMigration("testing")
-	require.NoError(t, err)
-
-	_, err = sq.StatementBuilder.PlaceholderFormat(sq.Dollar).Insert("channels").
-		Columns("id", "display_name").
-		Values(1, "test").RunWith(db).Exec()
-	require.NoError(t, err)
-
-	for _, test := range tests {
-		u, err := db.CreateSpinoff(test)
-		require.NoError(t, err)
-		assert.Equal(t, test.ID, u.ID)
-		assert.Equal(t, test.Name, u.Name)
-		assert.Equal(t, test.Parent, u.Parent)
-
-		rows := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
-			Select("id", "display_name", "parent_id").
-			From("spinoffs").Where(sq.Eq{"id": test.ID}).
-			RunWith(db).QueryRow()
-		assert.NoError(t, err)
-
-		var dbtest sidebar.Spinoff
-		err = rows.Scan(&dbtest.ID, &dbtest.Name, &dbtest.Parent)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, dbtest.ID)
-		assert.Equal(t, dbtest.Name, test.Name)
-		assert.Equal(t, dbtest.Parent, test.Parent)
-	}
-
-	for _, test := range tests_fail {
-		u, err := db.CreateSpinoff(test)
 		assert.Error(t, err)
 		assert.Nil(t, u)
 	}

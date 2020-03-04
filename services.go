@@ -12,6 +12,5 @@ type Authenticater interface {
 type Creater interface {
 	CreateUser(*User) (*User, error)
 	CreateChannel(*Channel) (*Channel, error)
-	CreateSpinoff(*Spinoff) (*Spinoff, error)
 	CreateMessage(*WebSocketMessage) (*WebSocketMessage, error)
 }

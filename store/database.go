@@ -26,25 +26,20 @@ type Creater interface {
 	CreateUser(*sidebar.User) (*sidebar.User, error)
 	CreateChannel(*sidebar.Channel) (*sidebar.Channel, error)
 	CreateMessage(*sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error)
-	CreateSpinoff(*sidebar.Spinoff) (*sidebar.Spinoff, error)
 }
 
 type Getter interface {
 	GetUser(int) (*sidebar.User, error)
 	GetChannel(int) (*sidebar.Channel, error)
 	GetMessage(int) (*sidebar.WebSocketMessage, error)
-	GetSpinoff(int) (*sidebar.Spinoff, error)
 
 	GetUsers() ([]*sidebar.User, error)
 	GetChannels() ([]*sidebar.Channel, error)
-	GetSpinoffs() ([]*sidebar.Spinoff, error)
 	GetMessages() ([]*sidebar.WebSocketMessage, error)
 
 	GetUsersInChannel(int) ([]*sidebar.User, error)
-	GetUsersInSpinoff(int) ([]*sidebar.User, error)
 
 	GetMessagesInChannel(int) ([]*sidebar.WebSocketMessage, error)
-	GetMessagesInSpinoff(int) ([]*sidebar.WebSocketMessage, error)
 	GetMessagesFromUser(int) ([]*sidebar.WebSocketMessage, error)
 	GetMessagesToUser(int) ([]*sidebar.WebSocketMessage, error)
 }
@@ -52,6 +47,7 @@ type Getter interface {
 type Authenticater interface {
 	UserForAuth(string) (*sidebar.User, error)
 	CheckToken(string) (*sidebar.User, error)
+	SetToken(string, int) error
 }
 
 // Database provides methods to query the database.
@@ -173,29 +169,6 @@ func (d *database) GetUsersInChannel(id int) ([]*sidebar.User, error) {
 	return users, nil
 }
 
-func (d *database) GetUsersInSpinoff(id int) ([]*sidebar.User, error) {
-	var users []*sidebar.User
-	rows, err := psql.Select("id", "display_name", "email", "password").
-		From("users").Join("user_spinoff us ON ( us.user_id = id )").
-		Where(sq.Eq{"us.spinoff_id": id}).RunWith(d).Query()
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var u user
-		err := rows.Scan(&u.ID, &u.DisplayName, &u.Email, &u.Password)
-		if err != nil {
-			continue
-		}
-
-		users = append(users, u.ToModel())
-	}
-
-	return users, nil
-}
-
 func (d *database) UserForAuth(email string) (*sidebar.User, error) {
 	var authUser userForAuth
 	row := psql.Select("id", "password").
@@ -236,12 +209,21 @@ func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 	var id int
 	dchannel := channelFromModel(c)
 	err := psql.Insert("channels").
-		Columns("display_name").Values(dchannel.Name).
+		Columns("display_name", "is_sidebar").Values(dchannel.Name, dchannel.IsSidebar).
 		Suffix("RETURNING id").
 		RunWith(d).QueryRow().Scan(&id)
 
 	if err != nil {
 		return nil, err
+	}
+
+	if dchannel.IsSidebar {
+		_, err := psql.Insert("sidebars").
+			Columns("id", "parent_id").Values(dchannel.ID, dchannel.Parent).
+			RunWith(d).Exec()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	dchannel.ID = id
@@ -250,40 +232,13 @@ func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 
 func (d *database) GetChannel(id int) (*sidebar.Channel, error) {
 	var c channel
-	row := psql.Select("id", "display_name").From("channels").RunWith(d).QueryRow()
-	err := row.Scan(&c.ID, &c.Name)
+	row := psql.Select("id", "display_name", "is_sidebar").From("channels").RunWith(d).QueryRow()
+	err := row.Scan(&c.ID, &c.Name, &c.IsSidebar)
 	if err != nil {
 		return nil, err
 	}
 
 	return c.ToModel(), nil
-}
-
-func (d *database) CreateSpinoff(s *sidebar.Spinoff) (*sidebar.Spinoff, error) {
-	var id int
-	dspinoff := spinoffFromModel(s)
-	err := psql.Insert("spinoffs").
-		Columns("display_name", "parent_id").Values(dspinoff.Name, dspinoff.Parent).
-		Suffix("RETURNING id").
-		RunWith(d).QueryRow().Scan(&id)
-
-	if err != nil {
-		return nil, err
-	}
-
-	dspinoff.ID = id
-	return dspinoff.ToModel(), nil
-}
-
-func (d *database) GetSpinoff(id int) (*sidebar.Spinoff, error) {
-	var s spinoff
-	row := psql.Select("id", "display_name", "parent_id").From("spinoffs").RunWith(d).QueryRow()
-	err := row.Scan(&s.ID, &s.Name, &s.Parent)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.ToModel(), nil
 }
 
 func (d *database) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error) {
@@ -317,30 +272,7 @@ func (d *database) GetMessagesInChannel(id int) ([]*sidebar.WebSocketMessage, er
 	var messages []*sidebar.WebSocketMessage
 	rows, err := psql.Select("id", "content").From("messages").
 		Join("channels_messages cm ON ( cm.message_id = id )").
-		Where(sq.Eq{"cm.channel_id": id}).Where(sq.Eq{"cm.is_spinoff": false}).
-		RunWith(d).Query()
-	if err != nil {
-		return nil, errors.New("Unable to find any messages")
-	}
-
-	for rows.Next() {
-		var m webSocketMessage
-		err := rows.Scan(&m.ID, &m.Content)
-		if err != nil {
-			return nil, errors.New("Error scanning for message")
-		}
-
-		messages = append(messages, m.ToModel())
-	}
-
-	return messages, nil
-}
-
-func (d *database) GetMessagesInSpinoff(id int) ([]*sidebar.WebSocketMessage, error) {
-	var messages []*sidebar.WebSocketMessage
-	rows, err := psql.Select("id", "content").From("messages").
-		Join("channels_messages cm ON ( cm.message_id = id )").
-		Where(sq.Eq{"cm.channel_id": id}).Where(sq.Eq{"cm.is_spinoff": true}).
+		Where(sq.Eq{"cm.channel_id": id}).
 		RunWith(d).Query()
 	if err != nil {
 		return nil, errors.New("Unable to find any messages")
@@ -428,7 +360,7 @@ func (d *database) GetUsers() ([]*sidebar.User, error) {
 
 func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 	var channels []*sidebar.Channel
-	rows, err := psql.Select("id", "display_name").From("channels").
+	rows, err := psql.Select("id", "display_name", "is_sidebar").From("channels").
 		RunWith(d).Query()
 	if err != nil {
 		return nil, errors.New("Unable to find any channels")
@@ -436,7 +368,7 @@ func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 
 	for rows.Next() {
 		var c channel
-		err := rows.Scan(&c.ID, &c.Name)
+		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar)
 		if err != nil {
 			return nil, errors.New("Error scanning channels")
 		}
@@ -445,27 +377,6 @@ func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 	}
 
 	return channels, nil
-}
-
-func (d *database) GetSpinoffs() ([]*sidebar.Spinoff, error) {
-	var spinoffs []*sidebar.Spinoff
-	rows, err := psql.Select("id", "display_name", "parent").From("spinoffs").
-		RunWith(d).Query()
-	if err != nil {
-		return nil, errors.New("Unable to find any spinoffs")
-	}
-
-	for rows.Next() {
-		var d spinoff
-		err := rows.Scan(&d.ID, &d.Name, &d.Parent)
-		if err != nil {
-			return nil, errors.New("Error scanning spinoffs")
-		}
-
-		spinoffs = append(spinoffs, d.ToModel())
-	}
-
-	return spinoffs, nil
 }
 
 func (d *database) GetMessages() ([]*sidebar.WebSocketMessage, error) {
@@ -487,6 +398,17 @@ func (d *database) GetMessages() ([]*sidebar.WebSocketMessage, error) {
 	}
 
 	return messages, nil
+}
+
+func (d *database) SetToken(token string, id int) error {
+	_, err := psql.Insert("tokens").
+		Columns("token", "user_id").Values(token, id).
+		RunWith(d).Exec()
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func migrations(db *sql.DB) error {
@@ -514,17 +436,17 @@ func migrations(db *sql.DB) error {
 	CREATE TABLE channels (
 		id SERIAL UNIQUE,
 		display_name TEXT UNIQUE NOT NULL,
+		is_sidebar BOOLEAN DEFAULT FALSE,
 		PRIMARY KEY(id)
 	);`
 
-	spinoffQuery := `
-	DROP TABLE IF EXISTS spinoffs CASCADE;
-	CREATE TABLE spinoffs (
-		id SERIAL UNIQUE,
-		display_name TEXT UNIQUE NOT NULL,
-		parent_id INT NOT NULL,
-		PRIMARY KEY(id),
-		FOREIGN KEY (parent_ID) REFERENCES channels(id) ON DELETE CASCADE
+	sidebarQuery := `
+	DROP TABLE IF EXISTS sidebars;
+	CREATE TABLE sidebars (
+		id INT NOT NULL,
+		parent_id INT,
+		FOREIGN KEY(id) REFERENCES channels(id) ON DELETE CASCADE,
+		FOREIGN KEY(parent_id) REFERENCES channels(id) ON DELETE CASCADE
 	);`
 
 	userChannelQuery := `
@@ -533,14 +455,6 @@ func migrations(db *sql.DB) error {
 		user_id INT REFERENCES users (id) ON UPDATE CASCADE,
 		channel_id INT REFERENCES channels (id) ON UPDATE CASCADE,
 		CONSTRAINT user_channel_pkey PRIMARY KEY (user_id, channel_id)
-	);`
-
-	userSpinoffQuery := `
-	DROP TABLE IF EXISTS user_spinoff CASCADE;
-	CREATE TABLE user_spinoff (
-		user_id INT REFERENCES users (id) ON UPDATE CASCADE,
-		spinoff_id INT REFERENCES spinoffs (id) ON UPDATE CASCADE,
-		CONSTRAINT user_spinoff_pkey PRIMARY KEY (user_id, spinoff_id)
 	);`
 
 	tokenStoreQuery := `
@@ -569,20 +483,19 @@ func migrations(db *sql.DB) error {
 	CREATE TABLE channels_messages (
 		channel_id INT NOT NULL,
 		message_id INT NOT NULL,
-		is_spinoff BOOL DEFAULT FALSE,
 		FOREIGN KEY(channel_id) REFERENCES channels(id) ON DELETE CASCADE,
 		FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
 	);`
 
 	queries := []string{
-		userQuery, messageQuery, channelQuery, spinoffQuery, userChannelQuery, userSpinoffQuery,
+		userQuery, messageQuery, channelQuery, sidebarQuery, userChannelQuery,
 		tokenStoreQuery, userMessageQuery, channelMessageQuery,
 	}
 
 	for _, query := range queries {
 		_, err := db.Exec(query)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "Query: %v", query)
 		}
 	}
 
