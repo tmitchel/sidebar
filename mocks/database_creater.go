@@ -17,7 +17,3 @@ func (m *MockDatabaseCreater) CreateChannel(*sidebar.Channel) (*sidebar.Channel,
 func (m *MockDatabaseCreater) CreateMessage(*sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error) {
 	return nil, nil
 }
-
-func (m *MockDatabaseCreater) CreateSpinoff(*sidebar.Spinoff) (*sidebar.Spinoff, error) {
-	return nil, nil
-}
