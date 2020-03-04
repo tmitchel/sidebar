@@ -219,7 +219,7 @@ func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 
 	if dchannel.IsSidebar {
 		_, err := psql.Insert("sidebars").
-			Columns("id", "parent_id").Values(dchannel.ID, dchannel.Parent).
+			Columns("id", "parent_id").Values(dchannel.ID, c.Parent).
 			RunWith(d).Exec()
 		if err != nil {
 			return nil, err
@@ -232,8 +232,9 @@ func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 
 func (d *database) GetChannel(id int) (*sidebar.Channel, error) {
 	var c channel
-	row := psql.Select("id", "display_name", "is_sidebar").From("channels").RunWith(d).QueryRow()
-	err := row.Scan(&c.ID, &c.Name, &c.IsSidebar)
+	row := psql.Select("id", "display_name", "is_sidebar", "sb.parent_id").From("channels").
+		JoinClause("FULL JOIN sidebars sb ON (sb.id = id)").RunWith(d).QueryRow()
+	err := row.Scan(&c.ID, &c.Name, &c.IsSidebar, &c.Parent)
 	if err != nil {
 		return nil, err
 	}
@@ -249,6 +250,13 @@ func (d *database) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocke
 		Suffix("RETURNING id").
 		RunWith(d).QueryRow().Scan(&id)
 
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = psql.Insert("users_messages").
+		Columns("user_to_id", "user_from_id", "message_id").Values(m.ToUser, m.FromUser, id).
+		RunWith(d).Exec()
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +368,8 @@ func (d *database) GetUsers() ([]*sidebar.User, error) {
 
 func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 	var channels []*sidebar.Channel
-	rows, err := psql.Select("id", "display_name", "is_sidebar").From("channels").
+	rows, err := psql.Select("id", "display_name", "is_sidebar", "sb.parent_id").From("channels").
+		JoinClause("FULL JOIN sidebars sb ON (sb.id = id)").
 		RunWith(d).Query()
 	if err != nil {
 		return nil, errors.New("Unable to find any channels")
@@ -368,7 +377,7 @@ func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 
 	for rows.Next() {
 		var c channel
-		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar)
+		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar, &c.Parent)
 		if err != nil {
 			return nil, errors.New("Error scanning channels")
 		}
@@ -381,7 +390,10 @@ func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 
 func (d *database) GetMessages() ([]*sidebar.WebSocketMessage, error) {
 	var messages []*sidebar.WebSocketMessage
-	rows, err := psql.Select("id", "event", "content").From("messages").
+	rows, err := psql.Select("id", "event", "content", "um.user_to_id", "um.user_from_id", "cm.channel_id").
+		From("messages").
+		Join("users_messages um ON (um.message_id = id)").
+		Join("channels_messages cm ON (cm.message_id = id)").
 		RunWith(d).Query()
 	if err != nil {
 		return nil, errors.New("Unable to find any messages")
@@ -389,12 +401,17 @@ func (d *database) GetMessages() ([]*sidebar.WebSocketMessage, error) {
 
 	for rows.Next() {
 		var w webSocketMessage
-		err := rows.Scan(&w.ID, &w.Event, &w.Content)
+		var toID, fromID, channelID int
+		err := rows.Scan(&w.ID, &w.Event, &w.Content, &toID, &fromID, &channelID)
 		if err != nil {
 			return nil, errors.New("Error scanning messages")
 		}
+		model := w.ToModel()
+		model.ToUser = toID
+		model.FromUser = fromID
+		model.Channel = channelID
 
-		messages = append(messages, w.ToModel())
+		messages = append(messages, model)
 	}
 
 	return messages, nil
