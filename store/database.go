@@ -64,7 +64,7 @@ type database struct {
 	*sql.DB
 }
 
-// New connects to the postgres database, runs migrations,
+// New connects to the postgres database
 // and returns that connection.
 func New() (Database, error) {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
@@ -81,14 +81,10 @@ func New() (Database, error) {
 		return nil, errors.Wrap(err, "Error pinging database")
 	}
 
-	// if err := migrations(db); err != nil {
-	// 	return nil, err
-	// }
-
 	return &database{db}, nil
 }
 
-// New connects to the postgres database, runs migrations,
+// NewWithMigration connects to the postgres database, runs migrations,
 // and returns that connection.
 func NewWithMigration(newDBName string) (Database, error) {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
