@@ -59,6 +59,7 @@ type Database interface {
 	Creater
 	Getter
 	Authenticater
+	sq.BaseRunner
 
 	Close()
 }
@@ -73,6 +74,30 @@ func New() (Database, error) {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
 		"password=%s dbname=%s sslmode=disable",
 		host, port, psqluser, password, dbname)
+	db, err := sql.Open("postgres", psqlInfo)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error opening database")
+	}
+
+	// make sure we have a good connection
+	err = db.Ping()
+	if err != nil {
+		return nil, errors.Wrap(err, "Error pinging database")
+	}
+
+	// if err := migrations(db); err != nil {
+	// 	return nil, err
+	// }
+
+	return &database{db}, nil
+}
+
+// New connects to the postgres database, runs migrations,
+// and returns that connection.
+func NewWithMigration(newDBName string) (Database, error) {
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
+		"password=%s dbname=%s sslmode=disable",
+		host, port, psqluser, password, newDBName)
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error opening database")
@@ -237,7 +262,7 @@ func (d *database) GetChannel(id int) (*sidebar.Channel, error) {
 func (d *database) CreateSpinoff(s *sidebar.Spinoff) (*sidebar.Spinoff, error) {
 	var id int
 	dspinoff := spinoffFromModel(s)
-	err := psql.Insert("spinoff").
+	err := psql.Insert("spinoffs").
 		Columns("display_name", "parent_id").Values(dspinoff.Name, dspinoff.Parent).
 		Suffix("RETURNING id").
 		RunWith(d).QueryRow().Scan(&id)
@@ -468,7 +493,7 @@ func migrations(db *sql.DB) error {
 	userQuery := `
 	DROP TABLE IF EXISTS users CASCADE;
 	CREATE TABLE users (
-		id SERIAL,
+		id SERIAL UNIQUE,
 		display_name TEXT UNIQUE NOT NULL,
 		email TEXT UNIQUE NOT NULL,
 		password TEXT NOT NULL,
@@ -478,7 +503,7 @@ func migrations(db *sql.DB) error {
 	messageQuery := `
 	DROP TABLE IF EXISTS messages CASCADE;
 	CREATE TABLE messages (
-		id SERIAL,
+		id SERIAL UNIQUE,
 		content TEXT NOT NULL,
 		event INT NOT NULL,
 		PRIMARY KEY(id)
@@ -487,7 +512,7 @@ func migrations(db *sql.DB) error {
 	channelQuery := `
 	DROP TABLE IF EXISTS channels CASCADE;
 	CREATE TABLE channels (
-		id SERIAL,
+		id SERIAL UNIQUE,
 		display_name TEXT UNIQUE NOT NULL,
 		PRIMARY KEY(id)
 	);`
@@ -495,7 +520,7 @@ func migrations(db *sql.DB) error {
 	spinoffQuery := `
 	DROP TABLE IF EXISTS spinoffs CASCADE;
 	CREATE TABLE spinoffs (
-		id SERIAL,
+		id SERIAL UNIQUE,
 		display_name TEXT UNIQUE NOT NULL,
 		parent_id INT NOT NULL,
 		PRIMARY KEY(id),
@@ -521,7 +546,7 @@ func migrations(db *sql.DB) error {
 	tokenStoreQuery := `
 	DROP TABLE IF EXISTS tokens CASCADE;
 	CREATE TABLE tokens (
-		token TEXT NOT NULL,
+		token TEXT NOT NULL UNIQUE,
 		user_id INT NOT NULL,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		PRIMARY KEY(token),

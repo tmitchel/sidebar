@@ -28,8 +28,3 @@ func setup(t *testing.T) Database {
 
 	return &database{db}
 }
-
-func TestCreateUser(t *testing.T) {
-	db := setup(t)
-	defer db.Close()
-}
