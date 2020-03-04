@@ -15,7 +15,7 @@ jobs:
         environment:
             POSTGRES_USER: postgres
             POSTGRES_PASSWORD: example
-            POSTGRES_DB: sidebar
+            POSTGRES_DB: testing
 
     #### TEMPLATE_NOTE: go expects specific checkout path representing url
     #### expecting it in the form of

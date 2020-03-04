@@ -22,13 +22,14 @@ const (
 
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-// Database provides methods to query the database.
-type Database interface {
+type Creater interface {
 	CreateUser(*sidebar.User) (*sidebar.User, error)
 	CreateChannel(*sidebar.Channel) (*sidebar.Channel, error)
 	CreateMessage(*sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error)
 	CreateSpinoff(*sidebar.Spinoff) (*sidebar.Spinoff, error)
+}
 
+type Getter interface {
 	GetUser(int) (*sidebar.User, error)
 	GetChannel(int) (*sidebar.Channel, error)
 	GetMessage(int) (*sidebar.WebSocketMessage, error)
@@ -46,9 +47,18 @@ type Database interface {
 	GetMessagesInSpinoff(int) ([]*sidebar.WebSocketMessage, error)
 	GetMessagesFromUser(int) ([]*sidebar.WebSocketMessage, error)
 	GetMessagesToUser(int) ([]*sidebar.WebSocketMessage, error)
+}
 
+type Authenticater interface {
 	UserForAuth(string) (*sidebar.User, error)
 	CheckToken(string) (*sidebar.User, error)
+}
+
+// Database provides methods to query the database.
+type Database interface {
+	Creater
+	Getter
+	Authenticater
 
 	Close()
 }
