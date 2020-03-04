@@ -133,7 +133,7 @@ func (d *database) CreateUser(u *sidebar.User) (*sidebar.User, error) {
 func (d *database) GetUser(id int) (*sidebar.User, error) {
 	var u user
 	row := psql.Select("id", "display_name", "email", "password").
-		From("users").RunWith(d).QueryRow()
+		From("users").Where(sq.Eq{"id": id}).RunWith(d).QueryRow()
 	err := row.Scan(&u.ID, &u.DisplayName, &u.Email, &u.Password)
 	if err != nil {
 		return nil, err
