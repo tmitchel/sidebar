@@ -73,6 +73,7 @@ func TestUsers(t *testing.T) {
 	t.Run("TestAddUserToChannel", testAddUserToChannel(t, db))
 	t.Run("TestGetUsers", testGetUsers(t, db))
 	t.Run("TestGetUsersInChannel", testGetUsersInChannel(t, db))
+	t.Run("TestUserForAuth", testUserForAuth(t, db))
 }
 
 func TestUserFromModel(t *testing.T) {
@@ -165,6 +166,16 @@ func testGetUser(t *testing.T, db Database) func(*testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, test.DisplayName, user.DisplayName)
 			assert.Equal(t, test.Email, user.Email)
+			assert.Equal(t, test.Password, user.Password)
+		}
+	}
+}
+
+func testUserForAuth(t *testing.T, db Database) func(*testing.T) {
+	return func(*testing.T) {
+		for _, test := range defaultUsers {
+			user, err := db.UserForAuth(test.Email)
+			require.NoError(t, err)
 			assert.Equal(t, test.Password, user.Password)
 		}
 	}
