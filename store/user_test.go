@@ -57,6 +57,12 @@ func userTestSetup(t *testing.T) Database {
 
 		require.NoError(t, err)
 	}
+
+	// _, err = sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
+	// 	Insert("users_channels").Columns("user_id", "channel_id").
+	// 	Values(defaultUsers[0].ID, defaultChannel[0].ID).RunWith(db).Exec()
+	// require.NoError(t, err)
+
 	return db
 }
 
@@ -64,6 +70,9 @@ func TestUsers(t *testing.T) {
 	db := userTestSetup(t)
 	t.Run("TestCreateUser", testCreateUser(t, db))
 	t.Run("TestGetUser", testGetUser(t, db))
+	t.Run("TestAddUserToChannel", testAddUserToChannel(t, db))
+	t.Run("TestGetUsers", testGetUsers(t, db))
+	t.Run("TestGetUsersInChannel", testGetUsersInChannel(t, db))
 }
 
 func TestUserFromModel(t *testing.T) {
@@ -132,7 +141,6 @@ func testCreateUser(t *testing.T, db Database) func(*testing.T) {
 				Select("id", "email", "display_name", "password").
 				From("users").Where(sq.Eq{"id": u.ID}).
 				RunWith(db).QueryRow()
-			assert.NoError(t, err)
 
 			var dbtest sidebar.User
 			err = rows.Scan(&dbtest.ID, &dbtest.Email, &dbtest.DisplayName, &dbtest.Password)
@@ -158,6 +166,61 @@ func testGetUser(t *testing.T, db Database) func(*testing.T) {
 			assert.Equal(t, test.DisplayName, user.DisplayName)
 			assert.Equal(t, test.Email, user.Email)
 			assert.Equal(t, test.Password, user.Password)
+		}
+	}
+}
+
+func testAddUserToChannel(t *testing.T, db Database) func(*testing.T) {
+	return func(*testing.T) {
+		for _, test := range defaultUsers {
+			err := db.AddUserToChannel(test.ID, defaultChannel[0].ID)
+			require.NoError(t, err)
+		}
+
+		rows, err := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
+			Select("user_id").
+			From("users_channels").Where(sq.Eq{"channel_id": defaultChannel[0].ID}).
+			RunWith(db).Query()
+
+		i := 0
+		for rows.Next() {
+			var id int
+			err = rows.Scan(&id)
+			require.NoError(t, err)
+			assert.Equal(t, defaultUsers[i].ID, id)
+			i++
+		}
+	}
+}
+
+func testGetUsers(t *testing.T, db Database) func(*testing.T) {
+	return func(*testing.T) {
+		users, err := db.GetUsers()
+		assert.NoError(t, err)
+
+		for i, u := range users {
+			if i >= len(defaultUsers) {
+				continue
+			}
+			assert.Equal(t, defaultUsers[i].DisplayName, u.DisplayName)
+			assert.Equal(t, defaultUsers[i].Email, u.Email)
+			assert.Equal(t, defaultUsers[i].Password, u.Password)
+		}
+	}
+}
+
+func testGetUsersInChannel(t *testing.T, db Database) func(*testing.T) {
+	return func(*testing.T) {
+		users, err := db.GetUsersInChannel(defaultChannel[0].ID)
+		require.NoError(t, err)
+
+		for i, u := range users {
+			if i >= len(defaultUsers) {
+				continue
+			}
+			assert.Equal(t, defaultUsers[i].DisplayName, u.DisplayName)
+			assert.Equal(t, defaultUsers[i].Email, u.Email)
+			assert.Equal(t, defaultUsers[i].Password, u.Password)
 		}
 	}
 }

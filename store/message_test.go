@@ -95,3 +95,23 @@ func TestCreateMessage(t *testing.T) {
 		assert.Equal(t, dbtest.Content, test.Content)
 	}
 }
+
+func testGetMessage() {
+
+}
+
+func testGetMessages() {
+
+}
+
+func testGetMessagesInChannel() {
+
+}
+
+func testGetMessagesFromChannel() {
+
+}
+
+func testGetMessagesToUser() {
+
+}

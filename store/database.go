@@ -22,16 +22,19 @@ const (
 
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
+// Creater ...
 type Creater interface {
 	CreateUser(*sidebar.User) (*sidebar.User, error)
 	CreateChannel(*sidebar.Channel) (*sidebar.Channel, error)
 	CreateMessage(*sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error)
 }
 
+// Adder ...
 type Adder interface {
 	AddUserToChannel(int, int) error
 }
 
+// Getter ...
 type Getter interface {
 	GetUser(int) (*sidebar.User, error)
 	GetChannel(int) (*sidebar.Channel, error)
@@ -49,6 +52,7 @@ type Getter interface {
 	GetMessagesToUser(int) ([]*sidebar.WebSocketMessage, error)
 }
 
+// Authenticater ...
 type Authenticater interface {
 	UserForAuth(string) (*sidebar.User, error)
 	CheckToken(string) (*sidebar.User, error)

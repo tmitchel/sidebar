@@ -90,3 +90,15 @@ func TestCreateChannel(t *testing.T) {
 		assert.Nil(t, u)
 	}
 }
+
+func testGetChannel() {
+
+}
+
+func testGetChannels() {
+
+}
+
+func testGetChannelsForUser() {
+
+}
