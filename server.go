@@ -5,7 +5,9 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"net/http"
+	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
@@ -14,6 +16,12 @@ import (
 
 // type for context.WithValue keys
 type ctxKey string
+
+var key []byte
+
+func init() {
+	key = []byte("TheKey")
+}
 
 // Server returns something that can handle http requests.
 type Server interface {
@@ -82,31 +90,73 @@ func (s *server) Login() http.HandlerFunc {
 			return
 		}
 
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"UserID":        user.ID,
+			"Email":         user.Email,
+			"UserName":      user.DisplayName,
+			"Authenticated": true,
+			"ExpireAt":      time.Now().Add(time.Minute * 15).Unix(),
+		})
+		tokenString, err := token.SignedString(key)
+		if err != nil {
+			http.Error(w, "Unable to sign token", http.StatusInternalServerError)
+			return
+		}
+
 		session, _ := s.store.Get(r, "chat-cook")
-		session.Values["authenticated"] = true
-		session.Values["user_info"] = user
+		session.Values["token"] = tokenString
 		session.Save(r, w)
 	}
 }
 
 // requireAuth provides an authentication middleware
 func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
+
+	type Token struct {
+		UserID        int
+		Email         string
+		UserName      string
+		Authenticated bool
+		ExpireAt      int64
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		session, _ := s.store.Get(r, "chat-cook")
 
 		// Check if user is authenticated
-		if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+		auth, ok := session.Values["token"].(Token)
+		if !ok && auth.Authenticated {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 
-		var user = User{}
-		user, ok := session.Values["user_info"].(User)
-		if !ok {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			logrus.Error("Not ok")
+		if time.Unix(auth.ExpireAt, 0).Before(time.Now()) {
+			http.Error(w, "Expired token", http.StatusForbidden)
 			return
 		}
+
+		user := User{
+			ID:          auth.UserID,
+			Email:       auth.Email,
+			DisplayName: auth.UserName,
+		}
+
+		// refresh the token
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"UserID":        user.ID,
+			"Email":         user.Email,
+			"UserName":      user.DisplayName,
+			"Authenticated": true,
+			"ExpireAt":      time.Now().Add(time.Minute * 15).Unix(),
+		})
+		tokenString, err := token.SignedString(key)
+		if err != nil {
+			http.Error(w, "Unable to sign token", http.StatusInternalServerError)
+			return
+		}
+
+		session.Values["token"] = tokenString
+		session.Save(r, w)
 
 		ctx := context.WithValue(r.Context(), ctxKey("user_info"), user)
 		f(w, r.WithContext(ctx))
