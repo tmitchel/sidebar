@@ -28,6 +28,10 @@ type Creater interface {
 	CreateMessage(*sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error)
 }
 
+type Adder interface {
+	AddUserToChannel(int, int) error
+}
+
 type Getter interface {
 	GetUser(int) (*sidebar.User, error)
 	GetChannel(int) (*sidebar.Channel, error)
@@ -38,6 +42,7 @@ type Getter interface {
 	GetMessages() ([]*sidebar.WebSocketMessage, error)
 
 	GetUsersInChannel(int) ([]*sidebar.User, error)
+	GetChannelsForUser(int) ([]*sidebar.Channel, error)
 
 	GetMessagesInChannel(int) ([]*sidebar.WebSocketMessage, error)
 	GetMessagesFromUser(int) ([]*sidebar.WebSocketMessage, error)
@@ -52,6 +57,7 @@ type Authenticater interface {
 
 // Database provides methods to query the database.
 type Database interface {
+	Adder
 	Creater
 	Getter
 	Authenticater
@@ -130,6 +136,13 @@ func (d *database) CreateUser(u *sidebar.User) (*sidebar.User, error) {
 	return duser.ToModel(), nil
 }
 
+func (d *database) AddUserToChannel(userID, channelID int) error {
+	_, err := psql.Insert("users_channels").
+		Columns("user_id", "channel_id").Values(userID, channelID).
+		RunWith(d).Exec()
+	return err
+}
+
 func (d *database) GetUser(id int) (*sidebar.User, error) {
 	var u user
 	row := psql.Select("id", "display_name", "email", "password").
@@ -145,7 +158,7 @@ func (d *database) GetUser(id int) (*sidebar.User, error) {
 func (d *database) GetUsersInChannel(id int) ([]*sidebar.User, error) {
 	var users []*sidebar.User
 	rows, err := psql.Select("id", "display_name", "email", "password").
-		From("users").Join("user_channel uc ON ( uc.user_id = id )").
+		From("users").Join("users_channels uc ON ( uc.user_id = id )").
 		Where(sq.Eq{"uc.channel_id": id}).RunWith(d).Query()
 	if err != nil {
 		return nil, err
@@ -163,6 +176,31 @@ func (d *database) GetUsersInChannel(id int) ([]*sidebar.User, error) {
 	}
 
 	return users, nil
+}
+
+func (d *database) GetChannelsForUser(id int) ([]*sidebar.Channel, error) {
+	var channels []*sidebar.Channel
+	rows, err := psql.Select("id", "display_name", "is_sidebar", "sb.parent_id").From("channels").
+		Join("users_channels uc ON ( uc.channel_id_id = id )").
+		JoinClause("FULL JOIN sidebars sb ON (sb.id = id)").
+		Where(sq.Eq{"uc.user_id": id}).RunWith(d).Query()
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var c channel
+		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar, &c.Parent)
+		if err != nil {
+			continue
+		}
+
+		channels = append(channels, c.ToModel())
+	}
+
+	return channels, nil
 }
 
 func (d *database) UserForAuth(email string) (*sidebar.User, error) {
@@ -252,6 +290,13 @@ func (d *database) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocke
 
 	_, err = psql.Insert("users_messages").
 		Columns("user_to_id", "user_from_id", "message_id").Values(m.ToUser, m.FromUser, id).
+		RunWith(d).Exec()
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = psql.Insert("channels_messages").
+		Columns("channel_id", "message_id").Values(m.Channel, id).
 		RunWith(d).Exec()
 	if err != nil {
 		return nil, err
@@ -463,11 +508,11 @@ func migrations(db *sql.DB) error {
 	);`
 
 	userChannelQuery := `
-	DROP TABLE IF EXISTS user_channel CASCADE;
-	CREATE TABLE user_channel (
+	DROP TABLE IF EXISTS users_channels CASCADE;
+	CREATE TABLE users_channels (
 		user_id INT REFERENCES users (id) ON UPDATE CASCADE,
 		channel_id INT REFERENCES channels (id) ON UPDATE CASCADE,
-		CONSTRAINT user_channel_pkey PRIMARY KEY (user_id, channel_id)
+		CONSTRAINT users_channels_pkey PRIMARY KEY (user_id, channel_id)
 	);`
 
 	tokenStoreQuery := `
