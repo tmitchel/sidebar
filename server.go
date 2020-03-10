@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -60,15 +61,14 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 
 	router := mux.NewRouter().StrictSlash(true)
 
-	// router.Handle("/channels", ).Methods("GET")
-	// router.Handle("/sidebars", ).Methods("GET")
-	// router.Handle("/messages", ).Methods("GET")
-	// router.Handle("/users", ).Methods("GET")
+	router.Handle("/channels", s.GetChannels()).Methods("GET")
+	router.Handle("/sidebars", s.GetSidebars()).Methods("GET")
+	router.Handle("/messages", s.GetMessages()).Methods("GET")
+	router.Handle("/users", s.GetUsers()).Methods("GET")
 
-	// router.Handle("/channel/{id}", ).Methods("GET")
-	// router.Handle("/sidebar/{id}", ).Methods("GET")
-	// router.Handle("/message/{id}", ).Methods("GET")
-	// router.Handle("/user/{id}", ).Methods("GET")
+	router.Handle("/channel/{id}", s.GetChannel()).Methods("GET")
+	router.Handle("/message/{id}", s.GetMessage()).Methods("GET")
+	router.Handle("/user/{id}", s.GetUser()).Methods("GET")
 
 	// router.Handle("/channels/", ).Methods("GET")  // r.URL.Query()["user"]
 	// router.Handle("/sidebars/", ).Methods("GET")  // r.URL.Query()["user"]
@@ -78,13 +78,13 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	// router.Handle("/users/", ).Methods("GET")  // r.URL.Query()["channel"]
 	// router.Handle("/users/", ).Methods("GET")  // r.URL.Query()["sidebar"]
 
-	// router.Handle("/channel", ).Methods("POST")
-	// router.Handle("/sidebar", ).Methods("POST")
-	// router.Handle("/user", ).Methods("POST")
+	router.Handle("/channel", s.CreateChannel()).Methods("POST")
+	router.Handle("/user", s.CreateUser()).Methods("POST")
 
-	// router.Handle("/channel", ).Methods("DELETE")
-	// router.Handle("/message", ).Methods("DELETE")
-	// router.Handle("/user", ).Methods("DELETE")
+	router.Handle("/add/{user}/{channel}", s.AddUserToChannel()).Methods("POST")
+
+	router.Handle("/channel", s.DeleteChannel()).Methods("DELETE")
+	router.Handle("/user", s.DeleteUser()).Methods("DELETE")
 
 	router.Handle("/ws", s.requireAuth(s.HandleWS()))
 	router.Handle("/login", s.Login())
@@ -97,9 +97,251 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	return s
 }
 
+type Response struct {
+	Message string
+	Payload interface{}
+}
+
 // Return just the mux.Router to be used in http.ListenAndServe.
 func (s *server) Serve() *mux.Router {
 	return s.router
+}
+
+func (s *server) AddUserToChannel() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, err := strconv.Atoi(mux.Vars(r)["user"])
+		if err != nil {
+			http.Error(w, "Unable to convert user id", http.StatusBadRequest)
+			return
+		}
+
+		channelID, err := strconv.Atoi(mux.Vars(r)["channel"])
+		if err != nil {
+			http.Error(w, "Unable to convert channel id", http.StatusBadRequest)
+			return
+		}
+
+		if err := s.Add.AddUserToChannel(userID, channelID); err != nil {
+			http.Error(w, "Unable to add user to channel", http.StatusInternalServerError)
+		}
+
+		json.NewEncoder(w).Encode(Response{
+			Message: "Successfully added user to channel",
+			Payload: nil,
+		})
+	}
+}
+
+func (s *server) GetUser() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
+		if err != nil {
+			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			return
+		}
+
+		user, err := s.Get.GetUser(reqID)
+		if err != nil {
+			http.Error(w, "Unable to get user", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(Response{
+			Message: "Successfully grabbed all user by id",
+			Payload: user,
+		})
+	}
+}
+
+func (s *server) GetChannel() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
+		if err != nil {
+			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			return
+		}
+		channel, err := s.Get.GetChannel(reqID)
+		if err != nil {
+			http.Error(w, "Unable to get channel", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(Response{
+			Message: "Successfully grabbed all channel by id",
+			Payload: channel,
+		})
+	}
+}
+
+func (s *server) GetMessage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
+		if err != nil {
+			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			return
+		}
+		message, err := s.Get.GetMessage(reqID)
+		if err != nil {
+			http.Error(w, "Unable to get message", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(Response{
+			Message: "Successfully grabbed all message by id",
+			Payload: message,
+		})
+	}
+}
+
+func (s *server) GetUsers() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		users, err := s.Get.GetUsers()
+		if err != nil {
+			http.Error(w, "Unable to get users", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(Response{
+			Message: "Successfully grabbed all users",
+			Payload: users,
+		})
+	}
+}
+
+func (s *server) GetChannels() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		channels, err := s.Get.GetChannels()
+		if err != nil {
+			http.Error(w, "Unable to get channels", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(Response{
+			Message: "Successfully grabbed all channels",
+			Payload: channels,
+		})
+	}
+}
+
+func (s *server) GetSidebars() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		channels, err := s.Get.GetChannels()
+		if err != nil {
+			http.Error(w, "Unable to get channels", http.StatusInternalServerError)
+			return
+		}
+
+		var sidebars []*Channel
+		for _, c := range channels {
+			if c.IsSidebar && c.Parent != 0 {
+				sidebars = append(sidebars, c)
+			}
+		}
+
+		json.NewEncoder(w).Encode(Response{
+			Message: "Successfully grabbed all sidebars",
+			Payload: sidebars,
+		})
+	}
+}
+
+func (s *server) GetMessages() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		messages, err := s.Get.GetMessages()
+		if err != nil {
+			http.Error(w, "Unable to get messages", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(Response{
+			Message: "Successfully grabbed all messages",
+			Payload: messages,
+		})
+	}
+}
+
+func (s *server) CreateChannel() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var reqChannel Channel
+		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
+			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
+			return
+		}
+
+		channel, err := s.Create.CreateChannel(&reqChannel)
+		if err != nil {
+			http.Error(w, "Unable to create channel", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(Response{
+			Message: "Successfully created channel",
+			Payload: channel,
+		})
+	}
+}
+
+func (s *server) CreateUser() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var reqUser User
+		if err := json.NewDecoder(r.Body).Decode(&reqUser); err != nil {
+			http.Error(w, "Unable to decode new user", http.StatusBadRequest)
+			return
+		}
+
+		user, err := s.Create.CreateUser(&reqUser)
+		if err != nil {
+			http.Error(w, "Unable to create user", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(Response{
+			Message: "Successfully created user",
+			Payload: user,
+		})
+	}
+}
+
+func (s *server) DeleteChannel() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var reqID int
+		if err := json.NewDecoder(r.Body).Decode(&reqID); err != nil {
+			http.Error(w, "Unable to decode request id", http.StatusBadRequest)
+			return
+		}
+
+		channel, err := s.Delete.DeleteChannel(reqID)
+		if err != nil {
+			http.Error(w, "Unable to delete channel", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(Response{
+			Message: "Successfully deleted channel",
+			Payload: channel,
+		})
+	}
+}
+
+func (s *server) DeleteUser() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var reqID int
+		if err := json.NewDecoder(r.Body).Decode(&reqID); err != nil {
+			http.Error(w, "Unable to decode request id", http.StatusBadRequest)
+			return
+		}
+
+		user, err := s.Delete.DeleteUser(reqID)
+		if err != nil {
+			http.Error(w, "Unable to delete user", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(Response{
+			Message: "Successfully deleted user",
+			Payload: user,
+		})
+	}
 }
 
 // Login returns an http.HandlerFunc to deal with user attempts to
