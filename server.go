@@ -27,6 +27,10 @@ func init() {
 // Server returns something that can handle http requests.
 type Server interface {
 	Serve() *mux.Router
+	GetSidebars() http.HandlerFunc
+	GetChannels() http.HandlerFunc
+	GetMessages() http.HandlerFunc
+	GetUsers() http.HandlerFunc
 }
 
 type server struct {
@@ -61,14 +65,14 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 
 	router := mux.NewRouter().StrictSlash(true)
 
-	router.Handle("/channels", s.GetChannels()).Methods("GET")
-	router.Handle("/sidebars", s.GetSidebars()).Methods("GET")
-	router.Handle("/messages", s.GetMessages()).Methods("GET")
-	router.Handle("/users", s.GetUsers()).Methods("GET")
+	router.Handle("/channels", s.requireAuth(s.GetChannels())).Methods("GET")
+	router.Handle("/sidebars", s.requireAuth(s.GetSidebars())).Methods("GET")
+	router.Handle("/messages", s.requireAuth(s.GetMessages())).Methods("GET")
+	router.Handle("/users", s.requireAuth(s.GetUsers())).Methods("GET")
 
-	router.Handle("/channel/{id}", s.GetChannel()).Methods("GET")
-	router.Handle("/message/{id}", s.GetMessage()).Methods("GET")
-	router.Handle("/user/{id}", s.GetUser()).Methods("GET")
+	router.Handle("/channel/{id}", s.requireAuth(s.GetChannel())).Methods("GET")
+	router.Handle("/message/{id}", s.requireAuth(s.GetMessage())).Methods("GET")
+	router.Handle("/user/{id}", s.requireAuth(s.GetUser())).Methods("GET")
 
 	// router.Handle("/channels/", ).Methods("GET")  // r.URL.Query()["user"]
 	// router.Handle("/sidebars/", ).Methods("GET")  // r.URL.Query()["user"]
@@ -78,13 +82,13 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	// router.Handle("/users/", ).Methods("GET")  // r.URL.Query()["channel"]
 	// router.Handle("/users/", ).Methods("GET")  // r.URL.Query()["sidebar"]
 
-	router.Handle("/channel", s.CreateChannel()).Methods("POST")
+	router.Handle("/channel", s.requireAuth(s.CreateChannel())).Methods("POST")
 	router.Handle("/user", s.CreateUser()).Methods("POST")
 
-	router.Handle("/add/{user}/{channel}", s.AddUserToChannel()).Methods("POST")
+	router.Handle("/add/{user}/{channel}", s.requireAuth(s.AddUserToChannel())).Methods("POST")
 
-	router.Handle("/channel", s.DeleteChannel()).Methods("DELETE")
-	router.Handle("/user", s.DeleteUser()).Methods("DELETE")
+	router.Handle("/channel", s.requireAuth(s.DeleteChannel())).Methods("DELETE")
+	router.Handle("/user", s.requireAuth(s.DeleteUser())).Methods("DELETE")
 
 	router.Handle("/ws", s.requireAuth(s.HandleWS()))
 	router.Handle("/login", s.Login())
