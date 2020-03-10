@@ -14,3 +14,29 @@ type Creater interface {
 	CreateChannel(*Channel) (*Channel, error)
 	CreateMessage(*WebSocketMessage) (*WebSocketMessage, error)
 }
+
+type Deleter interface {
+	DeleteUser(int) (*User, error)
+	DeleteChannel(int) (*Channel, error)
+}
+
+type Adder interface {
+	AddUserToChannel(int, int) error
+}
+
+type Getter interface {
+	GetUser(int) (*User, error)
+	GetChannel(int) (*Channel, error)
+	GetMessage(int) (*WebSocketMessage, error)
+
+	GetUsers() ([]*User, error)
+	GetChannels() ([]*Channel, error)
+	GetMessages() ([]*WebSocketMessage, error)
+
+	GetUsersInChannel(int) ([]*User, error)
+	GetChannelsForUser(int) ([]*Channel, error)
+
+	GetMessagesInChannel(int) ([]*WebSocketMessage, error)
+	GetMessagesFromUser(int) ([]*WebSocketMessage, error)
+	GetMessagesToUser(int) ([]*WebSocketMessage, error)
+}

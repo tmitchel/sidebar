@@ -26,6 +26,21 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	server := sidebar.NewServer(auth, create)
+	delete, err := services.NewDeleter(db)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	add, err := services.NewAdder(db)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	get, err := services.NewGetter(db)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	server := sidebar.NewServer(auth, create, delete, add, get)
 	http.ListenAndServe(":8080", server.Serve())
 }

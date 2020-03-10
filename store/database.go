@@ -34,6 +34,12 @@ type Adder interface {
 	AddUserToChannel(int, int) error
 }
 
+// Deleter ...
+type Deleter interface {
+	DeleteUser(int) (*sidebar.User, error)
+	DeleteChannel(int) (*sidebar.Channel, error)
+}
+
 // Getter ...
 type Getter interface {
 	GetUser(int) (*sidebar.User, error)
@@ -62,6 +68,7 @@ type Authenticater interface {
 // Database provides methods to query the database.
 type Database interface {
 	Adder
+	Deleter
 	Creater
 	Getter
 	Authenticater
@@ -229,16 +236,6 @@ func (d *database) CheckToken(token string) (*sidebar.User, error) {
 	if err != nil || u.ID == 0 {
 		return nil, errors.New("User doesn't have a token")
 	}
-
-	// this is how I will be able to tell if the token has expired. This will be
-	// lifted into the service layer later.
-	// if t.Add(30 * 24 * time.Hour).After(time.Now()) {
-	// _, err := psql.Delete("tokens").Where(sq.Eq{"token": token}).RunWith(d).Exec()
-	// if err != nil {
-	// 	return nil, errors.New("Unable to delete token")
-	// }
-	// return nil, errors.New("Token has expired")
-	// }
 
 	return u.ToModel(), nil
 }
@@ -460,6 +457,34 @@ func (d *database) GetMessages() ([]*sidebar.WebSocketMessage, error) {
 	}
 
 	return messages, nil
+}
+
+func (d *database) DeleteUser(id int) (*sidebar.User, error) {
+	user, err := d.GetUser(id)
+	if err != nil || user.ID == 0 {
+		return nil, errors.Errorf("User with id: %v doesn't exist", id)
+	}
+
+	_, err = psql.Delete("users").Where(sq.Eq{"id": id}).RunWith(d).Exec()
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (d *database) DeleteChannel(id int) (*sidebar.Channel, error) {
+	channel, err := d.GetChannel(id)
+	if err != nil || channel.ID == 0 {
+		return nil, errors.Errorf("User with id: %v doesn't exist", id)
+	}
+
+	_, err = psql.Delete("channels").Where(sq.Eq{"id": id}).RunWith(d).Exec()
+	if err != nil {
+		return nil, err
+	}
+
+	return channel, nil
 }
 
 func (d *database) SetToken(token string, id int) error {

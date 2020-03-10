@@ -32,15 +32,20 @@ type server struct {
 	hub    *chathub
 	router *mux.Router
 	store  *sessions.CookieStore
+
+	// services
 	Auth   Authenticater
 	Create Creater
+	Delete Deleter
+	Add    Adder
+	Get    Getter
 }
 
 // NewServer receives all services needed to provide functionality
 // then uses those services to spin-up an HTTP server. A hub for
 // handling Websocket connections is also started in a goroutine.
 // These things are wrapped in the server and returned.
-func NewServer(auth Authenticater, create Creater) Server {
+func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, get Getter) Server {
 	hub := newChathub()
 
 	s := &server{
@@ -48,9 +53,39 @@ func NewServer(auth Authenticater, create Creater) Server {
 		store:  sessions.NewCookieStore([]byte("super-secret-key")),
 		Auth:   auth,
 		Create: create,
+		Delete: delete,
+		Add:    add,
+		Get:    get,
 	}
 
 	router := mux.NewRouter().StrictSlash(true)
+
+	// router.Handle("/channels", ).Methods("GET")
+	// router.Handle("/sidebars", ).Methods("GET")
+	// router.Handle("/messages", ).Methods("GET")
+	// router.Handle("/users", ).Methods("GET")
+
+	// router.Handle("/channel/{id}", ).Methods("GET")
+	// router.Handle("/sidebar/{id}", ).Methods("GET")
+	// router.Handle("/message/{id}", ).Methods("GET")
+	// router.Handle("/user/{id}", ).Methods("GET")
+
+	// router.Handle("/channels/", ).Methods("GET")  // r.URL.Query()["user"]
+	// router.Handle("/sidebars/", ).Methods("GET")  // r.URL.Query()["user"]
+	// router.Handle("/messages/", ).Methods("GET")  // r.URL.Query()["to_user"]
+	// router.Handle("/messages/", ).Methods("GET")  // r.URL.Query()["from_user"]
+	// router.Handle("/messages/", ).Methods("GET")  // r.URL.Query()["channel"]
+	// router.Handle("/users/", ).Methods("GET")  // r.URL.Query()["channel"]
+	// router.Handle("/users/", ).Methods("GET")  // r.URL.Query()["sidebar"]
+
+	// router.Handle("/channel", ).Methods("POST")
+	// router.Handle("/sidebar", ).Methods("POST")
+	// router.Handle("/user", ).Methods("POST")
+
+	// router.Handle("/channel", ).Methods("DELETE")
+	// router.Handle("/message", ).Methods("DELETE")
+	// router.Handle("/user", ).Methods("DELETE")
+
 	router.Handle("/ws", s.requireAuth(s.HandleWS()))
 	router.Handle("/login", s.Login())
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
