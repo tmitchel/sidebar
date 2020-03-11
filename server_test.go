@@ -1,3 +1,5 @@
+// +build integration
+
 package sidebar_test
 
 import (
@@ -18,14 +20,14 @@ import (
 var defaultUsers = []*sidebar.User{
 	&sidebar.User{
 		ID:          1001,
-		DisplayName: "default-user-one",
-		Email:       "default-email-user-one",
+		DisplayName: "default-server-user-one",
+		Email:       "default-server-email-user-one",
 		Password:    []byte("password-one"),
 	},
 	&sidebar.User{
 		ID:          1002,
-		DisplayName: "default-user-two",
-		Email:       "default-email-user-two",
+		DisplayName: "default-server-user-two",
+		Email:       "default-server-email-user-two",
 		Password:    []byte("password-two"),
 	},
 }
@@ -33,7 +35,7 @@ var defaultUsers = []*sidebar.User{
 var defaultChannel = []*sidebar.Channel{
 	&sidebar.Channel{
 		ID:        1001,
-		Name:      "default-channel-one",
+		Name:      "default-server-channel-one",
 		IsSidebar: false,
 	},
 }
@@ -41,7 +43,7 @@ var defaultChannel = []*sidebar.Channel{
 var defaultSidebar = []*sidebar.Channel{
 	&sidebar.Channel{
 		ID:        1002,
-		Name:      "default-sidebar-one",
+		Name:      "default-server-sidebar-one",
 		IsSidebar: true,
 	},
 }
@@ -50,7 +52,7 @@ var defaultMessage = []*sidebar.WebSocketMessage{
 	&sidebar.WebSocketMessage{
 		ID:      1001,
 		Event:   1,
-		Content: "default-message-one",
+		Content: "default-server-message-one",
 	},
 }
 

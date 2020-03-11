@@ -1,3 +1,5 @@
+// +build unit
+
 package store
 
 import (
@@ -57,11 +59,6 @@ func userTestSetup(t *testing.T) Database {
 
 		require.NoError(t, err)
 	}
-
-	// _, err = sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
-	// 	Insert("users_channels").Columns("user_id", "channel_id").
-	// 	Values(defaultUsers[0].ID, defaultChannel[0].ID).RunWith(db).Exec()
-	// require.NoError(t, err)
 
 	return db
 }
