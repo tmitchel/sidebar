@@ -272,7 +272,7 @@ func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 
 func (d *database) GetChannel(id int) (*sidebar.Channel, error) {
 	var c channel
-	row := psql.Select("id", "display_name", "is_sidebar", "sb.parent_id").From("channels").
+	row := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id").From("channels as ch").
 		JoinClause("FULL JOIN sidebars sb ON (sb.id = id)").RunWith(d).QueryRow()
 	err := row.Scan(&c.ID, &c.Name, &c.IsSidebar, &c.Parent)
 	if err != nil {
@@ -442,8 +442,8 @@ func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 
 func (d *database) GetMessages() ([]*sidebar.WebSocketMessage, error) {
 	var messages []*sidebar.WebSocketMessage
-	rows, err := psql.Select("messages.id", "messages.event", "messages.content", "um.user_to_id", "um.user_from_id", "cm.channel_id").
-		From("messages").
+	rows, err := psql.Select("ms.id", "ms.event", "ms.content", "um.user_to_id", "um.user_from_id", "cm.channel_id").
+		From("messages as ms").
 		Join("users_messages um ON (um.message_id = id)").
 		Join("channels_messages cm ON (cm.message_id = id)").
 		RunWith(d).Query()
