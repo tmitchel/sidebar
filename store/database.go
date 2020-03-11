@@ -190,10 +190,11 @@ func (d *database) GetUsersInChannel(id int) ([]*sidebar.User, error) {
 }
 
 func (d *database) GetChannelsForUser(id int) ([]*sidebar.Channel, error) {
+	var parent sql.NullInt64
 	var channels []*sidebar.Channel
-	rows, err := psql.Select("id", "display_name", "is_sidebar", "sb.parent_id").From("channels").
-		Join("users_channels uc ON ( uc.channel_id_id = id )").
-		JoinClause("FULL JOIN sidebars sb ON (sb.id = id)").
+	rows, err := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id").From("channels as ch").
+		Join("users_channels uc ON ( uc.channel_id_id = ch.id )").
+		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").
 		Where(sq.Eq{"uc.user_id": id}).RunWith(d).Query()
 
 	if err != nil {
@@ -203,9 +204,13 @@ func (d *database) GetChannelsForUser(id int) ([]*sidebar.Channel, error) {
 
 	for rows.Next() {
 		var c channel
-		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar, &c.Parent)
+		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar, &parent)
 		if err != nil {
 			continue
+		}
+
+		if parent.Valid {
+			c.Parent = int(parent.Int64)
 		}
 
 		channels = append(channels, c.ToModel())
@@ -409,19 +414,24 @@ func (d *database) GetUsers() ([]*sidebar.User, error) {
 }
 
 func (d *database) GetChannels() ([]*sidebar.Channel, error) {
+	var parent sql.NullInt64
 	var channels []*sidebar.Channel
-	rows, err := psql.Select("id", "display_name", "is_sidebar", "sb.parent_id").From("channels").
-		JoinClause("FULL JOIN sidebars sb ON (sb.id = id)").
+	rows, err := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id").From("channels as ch").
+		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").
 		RunWith(d).Query()
 	if err != nil {
-		return nil, errors.New("Unable to find any channels")
+		return nil, errors.Errorf("Unable to find any channels %v", err)
 	}
 
 	for rows.Next() {
 		var c channel
-		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar, &c.Parent)
+		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar, &parent)
 		if err != nil {
-			return nil, errors.New("Error scanning channels")
+			return nil, errors.Errorf("Error scanning channels %v", err)
+		}
+
+		if parent.Valid {
+			c.Parent = int(parent.Int64)
 		}
 
 		channels = append(channels, c.ToModel())
@@ -432,7 +442,7 @@ func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 
 func (d *database) GetMessages() ([]*sidebar.WebSocketMessage, error) {
 	var messages []*sidebar.WebSocketMessage
-	rows, err := psql.Select("id", "event", "content", "um.user_to_id", "um.user_from_id", "cm.channel_id").
+	rows, err := psql.Select("messages.id", "messages.event", "messages.content", "um.user_to_id", "um.user_from_id", "cm.channel_id").
 		From("messages").
 		Join("users_messages um ON (um.message_id = id)").
 		Join("channels_messages cm ON (cm.message_id = id)").

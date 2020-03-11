@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/gob"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -101,14 +102,16 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	return s
 }
 
-type Response struct {
-	Message string
-	Payload interface{}
-}
-
 // Return just the mux.Router to be used in http.ListenAndServe.
 func (s *server) Serve() *mux.Router {
 	return s.router
+}
+
+func logging(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logrus.Printf("%s: %s", r.Method, r.RequestURI)
+		h.ServeHTTP(w, r)
+	})
 }
 
 func (s *server) AddUserToChannel() http.HandlerFunc {
@@ -129,10 +132,8 @@ func (s *server) AddUserToChannel() http.HandlerFunc {
 			http.Error(w, "Unable to add user to channel", http.StatusInternalServerError)
 		}
 
-		json.NewEncoder(w).Encode(Response{
-			Message: "Successfully added user to channel",
-			Payload: nil,
-		})
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "Successfully added user %v to channel %v", userID, channelID)
 	}
 }
 
@@ -150,10 +151,7 @@ func (s *server) GetUser() http.HandlerFunc {
 			return
 		}
 
-		json.NewEncoder(w).Encode(Response{
-			Message: "Successfully grabbed all user by id",
-			Payload: user,
-		})
+		json.NewEncoder(w).Encode(user)
 	}
 }
 
@@ -170,10 +168,7 @@ func (s *server) GetChannel() http.HandlerFunc {
 			return
 		}
 
-		json.NewEncoder(w).Encode(Response{
-			Message: "Successfully grabbed all channel by id",
-			Payload: channel,
-		})
+		json.NewEncoder(w).Encode(channel)
 	}
 }
 
@@ -190,10 +185,7 @@ func (s *server) GetMessage() http.HandlerFunc {
 			return
 		}
 
-		json.NewEncoder(w).Encode(Response{
-			Message: "Successfully grabbed all message by id",
-			Payload: message,
-		})
+		json.NewEncoder(w).Encode(message)
 	}
 }
 
@@ -205,10 +197,12 @@ func (s *server) GetUsers() http.HandlerFunc {
 			return
 		}
 
-		json.NewEncoder(w).Encode(Response{
-			Message: "Successfully grabbed all users",
-			Payload: users,
-		})
+		var u []User
+		for _, us := range users {
+			u = append(u, *us)
+		}
+
+		json.NewEncoder(w).Encode(users)
 	}
 }
 
@@ -217,13 +211,11 @@ func (s *server) GetChannels() http.HandlerFunc {
 		channels, err := s.Get.GetChannels()
 		if err != nil {
 			http.Error(w, "Unable to get channels", http.StatusInternalServerError)
+			logrus.Errorf("Error getting channels %v", err)
 			return
 		}
 
-		json.NewEncoder(w).Encode(Response{
-			Message: "Successfully grabbed all channels",
-			Payload: channels,
-		})
+		json.NewEncoder(w).Encode(channels)
 	}
 }
 
@@ -242,10 +234,7 @@ func (s *server) GetSidebars() http.HandlerFunc {
 			}
 		}
 
-		json.NewEncoder(w).Encode(Response{
-			Message: "Successfully grabbed all sidebars",
-			Payload: sidebars,
-		})
+		json.NewEncoder(w).Encode(sidebars)
 	}
 }
 
@@ -257,10 +246,7 @@ func (s *server) GetMessages() http.HandlerFunc {
 			return
 		}
 
-		json.NewEncoder(w).Encode(Response{
-			Message: "Successfully grabbed all messages",
-			Payload: messages,
-		})
+		json.NewEncoder(w).Encode(messages)
 	}
 }
 
@@ -278,10 +264,7 @@ func (s *server) CreateChannel() http.HandlerFunc {
 			return
 		}
 
-		json.NewEncoder(w).Encode(Response{
-			Message: "Successfully created channel",
-			Payload: channel,
-		})
+		json.NewEncoder(w).Encode(channel)
 	}
 }
 
@@ -299,10 +282,7 @@ func (s *server) CreateUser() http.HandlerFunc {
 			return
 		}
 
-		json.NewEncoder(w).Encode(Response{
-			Message: "Successfully created user",
-			Payload: user,
-		})
+		json.NewEncoder(w).Encode(user)
 	}
 }
 
@@ -320,10 +300,7 @@ func (s *server) DeleteChannel() http.HandlerFunc {
 			return
 		}
 
-		json.NewEncoder(w).Encode(Response{
-			Message: "Successfully deleted channel",
-			Payload: channel,
-		})
+		json.NewEncoder(w).Encode(channel)
 	}
 }
 
@@ -341,10 +318,7 @@ func (s *server) DeleteUser() http.HandlerFunc {
 			return
 		}
 
-		json.NewEncoder(w).Encode(Response{
-			Message: "Successfully deleted user",
-			Payload: user,
-		})
+		json.NewEncoder(w).Encode(user)
 	}
 }
 
