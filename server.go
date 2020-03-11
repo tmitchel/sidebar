@@ -28,10 +28,23 @@ func init() {
 // Server returns something that can handle http requests.
 type Server interface {
 	Serve() *mux.Router
+	GetChannel() http.HandlerFunc
+	GetMessage() http.HandlerFunc
+	GetUser() http.HandlerFunc
 	GetSidebars() http.HandlerFunc
 	GetChannels() http.HandlerFunc
 	GetMessages() http.HandlerFunc
 	GetUsers() http.HandlerFunc
+	CreateChannel() http.HandlerFunc
+	CreateUser() http.HandlerFunc
+
+	// untested...
+	AddUserToChannel() http.HandlerFunc
+	DeleteChannel() http.HandlerFunc
+	DeleteUser() http.HandlerFunc
+	Login() http.HandlerFunc
+	// requireAuth
+	HandleWS() http.HandlerFunc
 }
 
 type server struct {
@@ -142,12 +155,14 @@ func (s *server) GetUser() http.HandlerFunc {
 		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			logrus.Errorf("Unable to convert id %v", mux.Vars(r)["id"])
 			return
 		}
 
 		user, err := s.Get.GetUser(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get user", http.StatusInternalServerError)
+			logrus.Errorf("Unable to get user %v", reqID)
 			return
 		}
 

@@ -259,7 +259,7 @@ func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 
 	if dchannel.IsSidebar {
 		_, err := psql.Insert("sidebars").
-			Columns("id", "parent_id").Values(dchannel.ID, c.Parent).
+			Columns("id", "parent_id").Values(id, c.Parent).
 			RunWith(d).Exec()
 		if err != nil {
 			return nil, err
@@ -271,12 +271,17 @@ func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 }
 
 func (d *database) GetChannel(id int) (*sidebar.Channel, error) {
+	var parent sql.NullInt64
 	var c channel
 	row := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id").From("channels as ch").
-		JoinClause("FULL JOIN sidebars sb ON (sb.id = id)").RunWith(d).QueryRow()
-	err := row.Scan(&c.ID, &c.Name, &c.IsSidebar, &c.Parent)
+		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").Where(sq.Eq{"ch.id": id}).RunWith(d).QueryRow()
+	err := row.Scan(&c.ID, &c.Name, &c.IsSidebar, &parent)
 	if err != nil {
 		return nil, err
+	}
+
+	if parent.Valid {
+		c.Parent = int(parent.Int64)
 	}
 
 	return c.ToModel(), nil
@@ -314,13 +319,21 @@ func (d *database) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocke
 
 func (d *database) GetMessage(id int) (*sidebar.WebSocketMessage, error) {
 	var m webSocketMessage
-	row := psql.Select("id", "event", "content").From("messages").RunWith(d).QueryRow()
-	err := row.Scan(&m.ID, &m.Event, &m.Content)
+	var toUser, fromUser, channel int
+	row := psql.Select("ms.id", "ms.event", "ms.content", "cm.channel_id", "um.user_from_id", "um.user_to_id").From("messages as ms").
+		Join("channels_messages cm ON (cm.message_id = ms.id)").
+		Join("users_messages um ON ( um.message_id = ms.id )").
+		RunWith(d).QueryRow()
+	err := row.Scan(&m.ID, &m.Event, &m.Content, &channel, &fromUser, &toUser)
 	if err != nil {
 		return nil, err
 	}
+	mod := m.ToModel()
+	mod.Channel = channel
+	mod.FromUser = fromUser
+	mod.ToUser = toUser
 
-	return m.ToModel(), nil
+	return mod, nil
 }
 
 func (d *database) GetMessagesInChannel(id int) ([]*sidebar.WebSocketMessage, error) {
