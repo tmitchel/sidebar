@@ -88,13 +88,12 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	router.Handle("/message/{id}", s.requireAuth(s.GetMessage())).Methods("GET")
 	router.Handle("/user/{id}", s.requireAuth(s.GetUser())).Methods("GET")
 
-	// router.Handle("/channels/", ).Methods("GET")  // r.URL.Query()["user"]
-	// router.Handle("/sidebars/", ).Methods("GET")  // r.URL.Query()["user"]
-	// router.Handle("/messages/", ).Methods("GET")  // r.URL.Query()["to_user"]
-	// router.Handle("/messages/", ).Methods("GET")  // r.URL.Query()["from_user"]
-	// router.Handle("/messages/", ).Methods("GET")  // r.URL.Query()["channel"]
-	// router.Handle("/users/", ).Methods("GET")  // r.URL.Query()["channel"]
-	// router.Handle("/users/", ).Methods("GET")  // r.URL.Query()["sidebar"]
+	router.Handle("/channels/", s.requireAuth(s.GetChannelsForUser())).Methods("GET")   // r.URL.Query()["user"]
+	router.Handle("/sidebars/", s.requireAuth(s.GetSidebarsForUser())).Methods("GET")   // r.URL.Query()["user"]
+	router.Handle("/messages/", s.requireAuth(s.GetMessagesToUser())).Methods("GET")    // r.URL.Query()["to_user"]
+	router.Handle("/messages/", s.requireAuth(s.GetMessagesFromUser())).Methods("GET")  // r.URL.Query()["from_user"]
+	router.Handle("/messages/", s.requireAuth(s.GetMessagesInChannel())).Methods("GET") // r.URL.Query()["channel"]
+	router.Handle("/users/", s.requireAuth(s.GetUsersInChannel())).Methods("GET")       // r.URL.Query()["channel"]
 
 	router.Handle("/channel", s.requireAuth(s.CreateChannel())).Methods("POST")
 	router.Handle("/user", s.CreateUser()).Methods("POST")
@@ -125,6 +124,121 @@ func logging(h http.Handler) http.Handler {
 		logrus.Printf("%s: %s", r.Method, r.RequestURI)
 		h.ServeHTTP(w, r)
 	})
+}
+
+func (s *server) GetUsersInChannel() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		channelID, err := strconv.Atoi(r.URL.Query().Get("channel"))
+		if err != nil {
+			http.Error(w, "Error converting channelID", http.StatusBadRequest)
+			return
+		}
+
+		channels, err := s.Get.GetUsersInChannel(channelID)
+		if err != nil {
+			http.Error(w, "Error converting channelID", http.StatusBadRequest)
+			return
+		}
+
+		json.NewEncoder(w).Encode(channels)
+	}
+}
+
+func (s *server) GetChannelsForUser() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
+		if err != nil {
+			http.Error(w, "Error converting userID", http.StatusBadRequest)
+			return
+		}
+
+		channels, err := s.Get.GetChannelsForUser(userID)
+		if err != nil {
+			http.Error(w, "Error converting userID", http.StatusBadRequest)
+			return
+		}
+
+		json.NewEncoder(w).Encode(channels)
+	}
+}
+
+func (s *server) GetSidebarsForUser() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
+		if err != nil {
+			http.Error(w, "Error converting userID", http.StatusBadRequest)
+			return
+		}
+
+		channels, err := s.Get.GetChannelsForUser(userID)
+		if err != nil {
+			http.Error(w, "Error converting userID", http.StatusBadRequest)
+			return
+		}
+
+		var sidebars []*Channel
+		for _, c := range channels {
+			if c.IsSidebar {
+				sidebars = append(sidebars, c)
+			}
+		}
+
+		json.NewEncoder(w).Encode(sidebars)
+	}
+}
+
+func (s *server) GetMessagesToUser() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, err := strconv.Atoi(r.URL.Query().Get("to_user"))
+		if err != nil {
+			http.Error(w, "Error converting userID", http.StatusBadRequest)
+			return
+		}
+
+		messages, err := s.Get.GetMessagesToUser(userID)
+		if err != nil {
+			http.Error(w, "Error getting messages", http.StatusBadRequest)
+			return
+		}
+
+		json.NewEncoder(w).Encode(messages)
+	}
+}
+
+func (s *server) GetMessagesFromUser() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, err := strconv.Atoi(r.URL.Query().Get("from_user"))
+		if err != nil {
+			http.Error(w, "Error converting userID", http.StatusBadRequest)
+			return
+		}
+
+		messages, err := s.Get.GetMessagesFromUser(userID)
+		if err != nil {
+			http.Error(w, "Error getting messages", http.StatusBadRequest)
+			return
+		}
+
+		json.NewEncoder(w).Encode(messages)
+	}
+}
+
+func (s *server) GetMessagesInChannel() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		channelID, err := strconv.Atoi(r.URL.Query().Get("channelID"))
+		if err != nil {
+			http.Error(w, "Error converting channelID", http.StatusBadRequest)
+			return
+		}
+
+		messages, err := s.Get.GetMessagesInChannel(channelID)
+		if err != nil {
+			http.Error(w, "Error getting messages", http.StatusBadRequest)
+			return
+		}
+
+		json.NewEncoder(w).Encode(messages)
+	}
 }
 
 func (s *server) AddUserToChannel() http.HandlerFunc {
