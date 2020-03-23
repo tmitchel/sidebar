@@ -23,5 +23,21 @@ func main() {
 	get := frontend.NewGetter()
 
 	server := sidebar.NewServer(auth, create, delete, add, get)
-	http.ListenAndServe(":8080", server.Serve())
+	http.ListenAndServe(":8080", accessControl(server.Serve()))
+}
+
+// CORS access stuffs
+func accessControl(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS, PUT")
+		w.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		if r.Method == "OPTIONS" {
+			return
+		}
+
+		h.ServeHTTP(w, r)
+	})
 }

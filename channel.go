@@ -7,3 +7,9 @@ type Channel struct {
 	IsSidebar bool
 	Parent    int
 }
+
+type CompleteChannel struct {
+	Channel           Channel
+	UsersInChannel    []*User
+	MessagesInChannel []*WebSocketMessage
+}

@@ -8,3 +8,9 @@ type User struct {
 	Email       string `json:"email,omitempty"`
 	Password    []byte `json:"-"`
 }
+
+type CompleteUser struct {
+	User            User
+	Channels        []*Channel
+	ChannelsForUser []*Channel
+}

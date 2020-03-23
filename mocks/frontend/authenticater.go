@@ -35,10 +35,10 @@ func NewAuthenticater() sidebar.Authenticater {
 	}
 }
 
-func (a *authenticater) Validate(username, password string) (*sidebar.User, error) {
+func (a *authenticater) Validate(email, password string) (*sidebar.User, error) {
 	var foundUser *sidebar.User
 	for _, user := range a.Users {
-		if user.DisplayName == username {
+		if user.Email == email {
 			foundUser = user
 		}
 	}

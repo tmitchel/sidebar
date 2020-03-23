@@ -5,6 +5,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/sirupsen/logrus"
 	"github.com/tmitchel/sidebar"
 	"github.com/tmitchel/sidebar/store"
 )
@@ -24,6 +25,7 @@ func NewAuthenticater(db store.Database) (sidebar.Authenticater, error) {
 func (a *auth) Validate(email, password string) (*sidebar.User, error) {
 	authUser, err := a.DB.UserForAuth(email)
 	if err != nil {
+		logrus.Error("Unable to find user with email: %s", email)
 		return nil, err
 	}
 

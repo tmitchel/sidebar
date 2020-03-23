@@ -22,7 +22,7 @@ type ctxKey string
 var key []byte
 
 func init() {
-	key = []byte("TheKey")
+	key = []byte("TheKey2")
 }
 
 // Server returns something that can handle http requests.
@@ -79,32 +79,40 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 
 	router := mux.NewRouter().StrictSlash(true)
 
-	router.Handle("/channels", s.requireAuth(s.GetChannels())).Methods("GET")
-	router.Handle("/sidebars", s.requireAuth(s.GetSidebars())).Methods("GET")
-	router.Handle("/messages", s.requireAuth(s.GetMessages())).Methods("GET")
-	router.Handle("/users", s.requireAuth(s.GetUsers())).Methods("GET")
+	apiRouter := router.PathPrefix("/api").Subrouter()
+	// apiRouter.Use(accessControl)
 
-	router.Handle("/channel/{id}", s.requireAuth(s.GetChannel())).Methods("GET")
-	router.Handle("/message/{id}", s.requireAuth(s.GetMessage())).Methods("GET")
-	router.Handle("/user/{id}", s.requireAuth(s.GetUser())).Methods("GET")
+	apiRouter.Handle("/channels", s.requireAuth(s.GetChannels())).Methods("GET")
+	apiRouter.Handle("/sidebars", s.requireAuth(s.GetSidebars())).Methods("GET")
+	apiRouter.Handle("/messages", s.requireAuth(s.GetMessages())).Methods("GET")
+	apiRouter.Handle("/users", s.requireAuth(s.GetUsers())).Methods("GET")
 
-	router.Handle("/channels/", s.requireAuth(s.GetChannelsForUser())).Methods("GET")   // r.URL.Query()["user"]
-	router.Handle("/sidebars/", s.requireAuth(s.GetSidebarsForUser())).Methods("GET")   // r.URL.Query()["user"]
-	router.Handle("/messages/", s.requireAuth(s.GetMessagesToUser())).Methods("GET")    // r.URL.Query()["to_user"]
-	router.Handle("/messages/", s.requireAuth(s.GetMessagesFromUser())).Methods("GET")  // r.URL.Query()["from_user"]
-	router.Handle("/messages/", s.requireAuth(s.GetMessagesInChannel())).Methods("GET") // r.URL.Query()["channel"]
-	router.Handle("/users/", s.requireAuth(s.GetUsersInChannel())).Methods("GET")       // r.URL.Query()["channel"]
+	apiRouter.Handle("/load_channel/{id}", s.requireAuth(s.LoadChannel())).Methods("GET")
 
-	router.Handle("/channel", s.requireAuth(s.CreateChannel())).Methods("POST")
-	router.Handle("/user", s.CreateUser()).Methods("POST")
+	apiRouter.Handle("/channel/{id}", s.requireAuth(s.GetChannel())).Methods("GET")
+	apiRouter.Handle("/message/{id}", s.requireAuth(s.GetMessage())).Methods("GET")
+	apiRouter.Handle("/user/{id}", s.requireAuth(s.GetUser())).Methods("GET")
 
-	router.Handle("/add/{user}/{channel}", s.requireAuth(s.AddUserToChannel())).Methods("POST")
+	apiRouter.Handle("/channels/", s.requireAuth(s.GetChannelsForUser())).Methods("GET")   // r.URL.Query()["user"]
+	apiRouter.Handle("/sidebars/", s.requireAuth(s.GetSidebarsForUser())).Methods("GET")   // r.URL.Query()["user"]
+	apiRouter.Handle("/messages/", s.requireAuth(s.GetMessagesToUser())).Methods("GET")    // r.URL.Query()["to_user"]
+	apiRouter.Handle("/messages/", s.requireAuth(s.GetMessagesFromUser())).Methods("GET")  // r.URL.Query()["from_user"]
+	apiRouter.Handle("/messages/", s.requireAuth(s.GetMessagesInChannel())).Methods("GET") // r.URL.Query()["channel"]
+	apiRouter.Handle("/users/", s.requireAuth(s.GetUsersInChannel())).Methods("GET")       // r.URL.Query()["channel"]
 
-	router.Handle("/channel", s.requireAuth(s.DeleteChannel())).Methods("DELETE")
-	router.Handle("/user", s.requireAuth(s.DeleteUser())).Methods("DELETE")
+	apiRouter.Handle("/channel", s.requireAuth(s.CreateChannel())).Methods("POST")
+	apiRouter.Handle("/user", s.CreateUser()).Methods("POST")
+
+	apiRouter.Handle("/add/{user}/{channel}", s.requireAuth(s.AddUserToChannel())).Methods("POST")
+
+	apiRouter.Handle("/channel", s.requireAuth(s.DeleteChannel())).Methods("DELETE")
+	apiRouter.Handle("/user", s.requireAuth(s.DeleteUser())).Methods("DELETE")
+
+	apiRouter.Handle("/online_users", s.requireAuth(s.OnlineUsers())).Methods("GET")
+	apiRouter.Handle("/refresh_token", s.requireAuth(s.RefreshToken())).Methods("POST")
 
 	router.Handle("/ws", s.requireAuth(s.HandleWS()))
-	router.Handle("/login", s.Login())
+	router.Handle("/login", s.Login()).Methods("POST")
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "views/home.html")
 	}).Methods("GET")
@@ -119,11 +127,102 @@ func (s *server) Serve() *mux.Router {
 	return s.router
 }
 
+func accessControl(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS, PUT")
+		w.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
+
+		if r.Method == "OPTIONS" {
+			return
+		}
+
+		h.ServeHTTP(w, r)
+	})
+}
+
 func logging(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logrus.Printf("%s: %s", r.Method, r.RequestURI)
 		h.ServeHTTP(w, r)
 	})
+}
+
+func (s *server) LoadChannel() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
+		if err != nil {
+			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			return
+		}
+		channel, err := s.Get.GetChannel(reqID)
+		if err != nil {
+			http.Error(w, "Unable to get channel", http.StatusInternalServerError)
+			return
+		}
+
+		users, err := s.Get.GetUsersInChannel(reqID)
+		if err != nil {
+			http.Error(w, "Unable to get users for channel", http.StatusInternalServerError)
+			return
+		}
+
+		messages, err := s.Get.GetMessagesInChannel(reqID)
+		if err != nil {
+			http.Error(w, "Unable to get messages for channel", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(CompleteChannel{
+			Channel:           *channel,
+			UsersInChannel:    users,
+			MessagesInChannel: messages,
+		})
+	}
+}
+
+func (s *server) LoadUser() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
+		if err != nil {
+			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			return
+		}
+		user, err := s.Get.GetUser(reqID)
+		if err != nil {
+			http.Error(w, "Unable to get user", http.StatusInternalServerError)
+			return
+		}
+
+		allChannels, err := s.Get.GetChannels()
+		if err != nil {
+			http.Error(w, "Unable to get all channels", http.StatusInternalServerError)
+			return
+		}
+
+		channels, err := s.Get.GetChannelsForUser(reqID)
+		if err != nil {
+			http.Error(w, "Unable to get channels for user", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(CompleteUser{
+			User:            *user,
+			ChannelsForUser: channels,
+			Channels:        allChannels,
+		})
+	}
+}
+
+func (s *server) OnlineUsers() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		users := make([]User, len(s.hub.clients))
+		for u := range s.hub.clients {
+			users = append(users, u.User)
+		}
+
+		json.NewEncoder(w).Encode(users)
+	}
 }
 
 func (s *server) GetUsersInChannel() http.HandlerFunc {
@@ -225,7 +324,7 @@ func (s *server) GetMessagesFromUser() http.HandlerFunc {
 
 func (s *server) GetMessagesInChannel() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		channelID, err := strconv.Atoi(r.URL.Query().Get("channelID"))
+		channelID, err := strconv.Atoi(r.URL.Query().Get("channel"))
 		if err != nil {
 			http.Error(w, "Error converting channelID", http.StatusBadRequest)
 			return
@@ -461,7 +560,18 @@ func (s *server) Login() http.HandlerFunc {
 		Password string `json:"password"`
 	}
 
+	type Token struct {
+		UserID        int
+		Email         string
+		UserName      string
+		Authenticated bool
+		jwt.StandardClaims
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
 		var auther auth
 		if err := json.NewDecoder(r.Body).Decode(&auther); err != nil {
 			http.Error(w, "Ill-formatted login attempt", http.StatusBadRequest)
@@ -469,27 +579,95 @@ func (s *server) Login() http.HandlerFunc {
 		}
 
 		user, err := s.Auth.Validate(auther.Email, auther.Password)
-		if err != nil && user != nil {
+		if err != nil || user == nil {
 			http.Error(w, "Incorrect username/password", http.StatusForbidden)
 			return
 		}
 
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"UserID":        user.ID,
-			"Email":         user.Email,
-			"UserName":      user.DisplayName,
-			"Authenticated": true,
-			"ExpireAt":      time.Now().Add(time.Minute * 15).Unix(),
-		})
+		expiration := time.Now().Add(time.Minute * 15)
+		claims := &Token{
+			UserID:        user.ID,
+			Email:         user.Email,
+			UserName:      user.DisplayName,
+			Authenticated: true,
+			StandardClaims: jwt.StandardClaims{
+				ExpiresAt: expiration.Unix(),
+			},
+		}
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 		tokenString, err := token.SignedString(key)
 		if err != nil {
 			http.Error(w, "Unable to sign token", http.StatusInternalServerError)
 			return
 		}
 
-		session, _ := s.store.Get(r, "chat-cook")
-		session.Values["token"] = tokenString
-		session.Save(r, w)
+		http.SetCookie(w, &http.Cookie{
+			Name:     "chat-cook",
+			Value:    tokenString,
+			Expires:  expiration,
+			HttpOnly: true,
+		})
+
+		json.NewEncoder(w).Encode(user)
+	}
+}
+
+func (s *server) RefreshToken() http.HandlerFunc {
+	type Token struct {
+		UserID        int
+		Email         string
+		UserName      string
+		Authenticated bool
+		jwt.StandardClaims
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		c, err := r.Cookie("chat-cook")
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			logrus.Errorf("Error with cookie", err)
+			return
+		}
+
+		tokStr := c.Value
+		claims := &Token{}
+		tkn, err := jwt.ParseWithClaims(tokStr, claims, func(token *jwt.Token) (interface{}, error) {
+			return key, nil
+		})
+
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		} else if !tkn.Valid {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// Check if user is authenticated
+		if !claims.Authenticated {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
+		if time.Unix(claims.ExpiresAt, 0).Sub(time.Now()) > 90*time.Second {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		expiration := time.Now().Add(15 * time.Minute)
+		claims.ExpiresAt = expiration.Unix()
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		tokenString, err := token.SignedString(key)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "chat-cook",
+			Value:    tokenString,
+			Expires:  expiration,
+			HttpOnly: true,
+		})
 	}
 }
 
@@ -501,46 +679,66 @@ func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
 		Email         string
 		UserName      string
 		Authenticated bool
-		ExpireAt      int64
+		jwt.StandardClaims
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		session, _ := s.store.Get(r, "chat-cook")
+		c, err := r.Cookie("chat-cook")
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			logrus.Errorf("Error with cookie", err)
+			return
+		}
+
+		tokStr := c.Value
+		claims := &Token{}
+		tkn, err := jwt.ParseWithClaims(tokStr, claims, func(token *jwt.Token) (interface{}, error) {
+			return key, nil
+		})
+
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		} else if !tkn.Valid {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 
 		// Check if user is authenticated
-		auth, ok := session.Values["token"].(Token)
-		if !ok && auth.Authenticated {
+		if !claims.Authenticated {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 
-		if time.Unix(auth.ExpireAt, 0).Before(time.Now()) {
-			http.Error(w, "Expired token", http.StatusForbidden)
-			return
-		}
-
 		user := User{
-			ID:          auth.UserID,
-			Email:       auth.Email,
-			DisplayName: auth.UserName,
+			ID:          claims.UserID,
+			Email:       claims.Email,
+			DisplayName: claims.UserName,
 		}
 
-		// refresh the token
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"UserID":        user.ID,
-			"Email":         user.Email,
-			"UserName":      user.DisplayName,
-			"Authenticated": true,
-			"ExpireAt":      time.Now().Add(time.Minute * 15).Unix(),
-		})
+		expiration := time.Now().Add(15 * time.Minute)
+		claims = &Token{
+			UserID:        user.ID,
+			Email:         user.Email,
+			UserName:      user.DisplayName,
+			Authenticated: true,
+			StandardClaims: jwt.StandardClaims{
+				ExpiresAt: expiration.Unix(),
+			},
+		}
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 		tokenString, err := token.SignedString(key)
 		if err != nil {
 			http.Error(w, "Unable to sign token", http.StatusInternalServerError)
 			return
 		}
 
-		session.Values["token"] = tokenString
-		session.Save(r, w)
+		http.SetCookie(w, &http.Cookie{
+			Name:     "chat-cook",
+			Value:    tokenString,
+			Expires:  expiration,
+			HttpOnly: true,
+		})
 
 		ctx := context.WithValue(r.Context(), ctxKey("user_info"), user)
 		f(w, r.WithContext(ctx))

@@ -1,5 +1,7 @@
 package sidebar
 
+import "fmt"
+
 type chathub struct {
 	clients    map[*client]bool
 	broadcast  chan WebSocketMessage
@@ -22,6 +24,7 @@ func (h *chathub) run() {
 	for {
 		select {
 		case client := <-h.register:
+			fmt.Println("Registering client")
 			h.clients[client] = true
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
