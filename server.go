@@ -11,7 +11,6 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 )
@@ -50,7 +49,6 @@ type Server interface {
 type server struct {
 	hub    *chathub
 	router *mux.Router
-	store  *sessions.CookieStore
 
 	// services
 	Auth   Authenticater
@@ -69,7 +67,6 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 
 	s := &server{
 		hub:    hub,
-		store:  sessions.NewCookieStore([]byte("super-secret-key")),
 		Auth:   auth,
 		Create: create,
 		Delete: delete,
@@ -80,7 +77,6 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	router := mux.NewRouter().StrictSlash(true)
 
 	apiRouter := router.PathPrefix("/api").Subrouter()
-	// apiRouter.Use(accessControl)
 
 	apiRouter.Handle("/channels", s.requireAuth(s.GetChannels())).Methods("GET")
 	apiRouter.Handle("/sidebars", s.requireAuth(s.GetSidebars())).Methods("GET")
@@ -88,6 +84,7 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	apiRouter.Handle("/users", s.requireAuth(s.GetUsers())).Methods("GET")
 
 	apiRouter.Handle("/load_channel/{id}", s.requireAuth(s.LoadChannel())).Methods("GET")
+	apiRouter.Handle("/load_user/{id}", s.requireAuth(s.LoadUser())).Methods("GET")
 
 	apiRouter.Handle("/channel/{id}", s.requireAuth(s.GetChannel())).Methods("GET")
 	apiRouter.Handle("/message/{id}", s.requireAuth(s.GetMessage())).Methods("GET")
@@ -161,7 +158,7 @@ func (s *server) LoadChannel() http.HandlerFunc {
 			return
 		}
 
-		users, err := s.Get.GetUsersInChannel(reqID)
+		users, err := s.Get.GetUsers()
 		if err != nil {
 			http.Error(w, "Unable to get users for channel", http.StatusInternalServerError)
 			return
@@ -649,7 +646,7 @@ func (s *server) RefreshToken() http.HandlerFunc {
 		}
 
 		if time.Unix(claims.ExpiresAt, 0).Sub(time.Now()) > 90*time.Second {
-			w.WriteHeader(http.StatusBadRequest)
+			w.WriteHeader(http.StatusTooEarly)
 			return
 		}
 

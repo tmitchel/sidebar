@@ -17,19 +17,19 @@ func NewCreater() sidebar.Creater {
 }
 
 func (c *creater) CreateUser(user *sidebar.User) (*sidebar.User, error) {
-	user.ID = len(c.Users) + 1
+	user.ID = len(c.Users) + 10
 	c.Users[user.ID] = user
 	return user, nil
 }
 
 func (c *creater) CreateChannel(channel *sidebar.Channel) (*sidebar.Channel, error) {
-	channel.ID = len(c.Channels) + 1
+	channel.ID = len(c.Channels) + 10
 	c.Channels[channel.ID] = channel
 	return channel, nil
 }
 
 func (c *creater) CreateMessage(message *sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error) {
-	message.ID = len(c.Messages) + 1
+	message.ID = len(c.Messages) + 10
 	c.Messages[message.ID] = message
 	return message, nil
 }

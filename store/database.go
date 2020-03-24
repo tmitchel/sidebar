@@ -8,6 +8,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/pkg/errors"
 	"github.com/tmitchel/sidebar"
+	"golang.org/x/crypto/bcrypt"
 
 	_ "github.com/lib/pq" // postgres drivers
 )
@@ -61,7 +62,7 @@ type Getter interface {
 // Authenticater ...
 type Authenticater interface {
 	UserForAuth(string) (*sidebar.User, error)
-	CheckToken(string) (*sidebar.User, error)
+	// CheckToken(string) (*sidebar.User, error)
 	SetToken(string, int) error
 }
 
@@ -130,6 +131,101 @@ func (d *database) Close() {
 	d.DB.Close()
 }
 
+func MigrationsForTesting(d Database) error {
+	users := []*sidebar.User{
+		&sidebar.User{
+			ID:          1,
+			DisplayName: "user one",
+			Email:       "userone@email.com",
+			Password:    []byte("password"),
+		},
+		&sidebar.User{
+			ID:          2,
+			DisplayName: "user twp",
+			Email:       "usertwp@email.com",
+			Password:    []byte("password"),
+		},
+		&sidebar.User{
+			ID:          3,
+			DisplayName: "user three",
+			Email:       "userthree@email.com",
+			Password:    []byte("password"),
+		},
+	}
+	for i, u := range users {
+		u.Password, _ = bcrypt.GenerateFromPassword(u.Password, bcrypt.DefaultCost)
+		uu, err := d.CreateUser(u)
+		if err != nil {
+			return err
+		}
+		users[i].ID = uu.ID
+	}
+
+	channels := []*sidebar.Channel{
+		&sidebar.Channel{
+			ID:        1,
+			Name:      "channel one",
+			IsSidebar: false,
+		},
+		&sidebar.Channel{
+			ID:        2,
+			Name:      "channel two",
+			IsSidebar: true,
+			Parent:    1,
+		},
+	}
+	for i, c := range channels {
+		cc, err := d.CreateChannel(c)
+		if err != nil {
+			return err
+		}
+		channels[i].ID = cc.ID
+	}
+
+	messages := []*sidebar.WebSocketMessage{
+		&sidebar.WebSocketMessage{
+			ID:       1,
+			Event:    1,
+			Content:  "message one",
+			ToUser:   users[0].ID,
+			FromUser: users[1].ID,
+			Channel:  channels[0].ID,
+		},
+		&sidebar.WebSocketMessage{
+			ID:       2,
+			Event:    1,
+			Content:  "message two",
+			ToUser:   users[1].ID,
+			FromUser: users[0].ID,
+			Channel:  channels[1].ID,
+		},
+		&sidebar.WebSocketMessage{
+			ID:       3,
+			Event:    2,
+			Content:  "",
+			ToUser:   users[0].ID,
+			FromUser: users[0].ID,
+			Channel:  channels[0].ID,
+		},
+	}
+	for i, m := range messages {
+		mm, err := d.CreateMessage(m)
+		if err != nil {
+			return err
+		}
+		messages[i].ID = mm.ID
+	}
+
+	for _, u := range users {
+		err := d.AddUserToChannel(u.ID, channels[0].ID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (d *database) CreateUser(u *sidebar.User) (*sidebar.User, error) {
 	var id int
 	duser := userFromModel(u)
@@ -182,7 +278,6 @@ func (d *database) GetUsersInChannel(id int) ([]*sidebar.User, error) {
 		if err != nil {
 			continue
 		}
-
 		users = append(users, u.ToModel())
 	}
 
@@ -338,8 +433,9 @@ func (d *database) GetMessage(id int) (*sidebar.WebSocketMessage, error) {
 
 func (d *database) GetMessagesInChannel(id int) ([]*sidebar.WebSocketMessage, error) {
 	var messages []*sidebar.WebSocketMessage
-	rows, err := psql.Select("id", "content").From("messages").
+	rows, err := psql.Select("id", "content", "event", "cm.channel_id", "um.user_from_id", "um.user_to_id").From("messages").
 		Join("channels_messages cm ON ( cm.message_id = id )").
+		Join("users_messages um ON ( um.message_id = id )").
 		Where(sq.Eq{"cm.channel_id": id}).
 		RunWith(d).Query()
 	if err != nil {
@@ -348,12 +444,18 @@ func (d *database) GetMessagesInChannel(id int) ([]*sidebar.WebSocketMessage, er
 
 	for rows.Next() {
 		var m webSocketMessage
-		err := rows.Scan(&m.ID, &m.Content)
+		var channel, toUser, fromUser int
+		err := rows.Scan(&m.ID, &m.Content, &m.Event, &channel, &toUser, &fromUser)
 		if err != nil {
 			return nil, errors.New("Error scanning for message")
 		}
 
-		messages = append(messages, m.ToModel())
+		mod := m.ToModel()
+		mod.Channel = channel
+		mod.ToUser = toUser
+		mod.FromUser = fromUser
+
+		messages = append(messages, mod)
 	}
 
 	return messages, nil
@@ -580,7 +682,7 @@ func migrations(db *sql.DB) error {
 	userMessageQuery := `
 	DROP TABLE IF EXISTS users_messages CASCADE;
 	CREATE TABLE users_messages (
-		user_to_id INT NOT NULL,
+		user_to_id INT,
 		user_from_id INT NOT NULL,
 		message_id INT NOT NULL,
 		FOREIGN KEY(user_to_id) REFERENCES users(id) ON DELETE CASCADE,
