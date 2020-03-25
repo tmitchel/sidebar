@@ -570,7 +570,7 @@ func (s *server) Login() http.HandlerFunc {
 		if os.Getenv("PORT") == "" {
 			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
 		} else {
-			w.Header().Set("Access-Control-Allow-Origin", "https://https://sidebar-frontend.now.sh")
+			w.Header().Set("Access-Control-Allow-Origin", "https://sidebar-frontend.now.sh")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")

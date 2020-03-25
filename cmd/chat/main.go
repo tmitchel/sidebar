@@ -74,7 +74,7 @@ func accessControl(local bool, h http.Handler) http.Handler {
 		if local {
 			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
 		} else {
-			w.Header().Set("Access-Control-Allow-Origin", "https://https://sidebar-frontend.now.sh")
+			w.Header().Set("Access-Control-Allow-Origin", "https://sidebar-frontend.now.sh")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS, PUT")
 		w.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
