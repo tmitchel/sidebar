@@ -605,10 +605,10 @@ func (s *server) Login() http.HandlerFunc {
 		}
 
 		http.SetCookie(w, &http.Cookie{
-			Name:     "chat-cook",
-			Value:    tokenString,
-			Expires:  expiration,
-			HttpOnly: true,
+			Name:    "chat-cook",
+			Value:   tokenString,
+			Expires: expiration,
+			// HttpOnly: true,
 		})
 
 		json.NewEncoder(w).Encode(user)
