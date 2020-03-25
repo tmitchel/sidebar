@@ -62,16 +62,20 @@ func main() {
 	server := sidebar.NewServer(auth, create, delete, add, get)
 
 	if os.Getenv("PORT") != "" {
-		http.ListenAndServe(":"+os.Getenv("PORT"), accessControl(server.Serve()))
+		http.ListenAndServe(":"+os.Getenv("PORT"), accessControl(false, server.Serve()))
 	} else {
-		http.ListenAndServe(":8080", accessControl(server.Serve()))
+		http.ListenAndServe(":8080", accessControl(true, server.Serve()))
 	}
 }
 
 // CORS access stuffs
-func accessControl(h http.Handler) http.Handler {
+func accessControl(local bool, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
+		if local {
+			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", "https://sidebar-frontend-7qkk2ovbb.now.sh")
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS, PUT")
 		w.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
