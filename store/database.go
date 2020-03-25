@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -88,6 +89,10 @@ func New() (Database, error) {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
 		"password=%s dbname=%s sslmode=disable",
 		host, port, psqluser, password, dbname)
+
+	if os.Getenv("DATABASE_URL") != "" {
+		psqlInfo = os.Getenv("DATABASE_URL")
+	}
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error opening database")
