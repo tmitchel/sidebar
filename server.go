@@ -672,6 +672,8 @@ func (s *server) RefreshToken() http.HandlerFunc {
 			Value:    tokenString,
 			Expires:  expiration,
 			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
+			Secure:   true,
 		})
 	}
 }
@@ -743,6 +745,8 @@ func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
 			Value:    tokenString,
 			Expires:  expiration,
 			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
+			Secure:   true,
 		})
 
 		ctx := context.WithValue(r.Context(), ctxKey("user_info"), user)
