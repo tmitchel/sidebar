@@ -60,7 +60,12 @@ func main() {
 	}
 
 	server := sidebar.NewServer(auth, create, delete, add, get)
-	http.ListenAndServe(":8080", accessControl(server.Serve()))
+
+	if os.Getenv("PORT") != "" {
+		http.ListenAndServe(":"+os.Getenv("PORT"), accessControl(server.Serve()))
+	} else {
+		http.ListenAndServe(":8080", accessControl(server.Serve()))
+	}
 }
 
 // CORS access stuffs
