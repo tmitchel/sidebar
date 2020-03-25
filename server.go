@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -566,7 +567,12 @@ func (s *server) Login() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
+		if os.Getenv("PORT") == "" {
+			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", "https://sidebar-frontend-7qkk2ovbb.now.sh")
+		}
+		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		var auther auth
