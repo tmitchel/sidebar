@@ -297,7 +297,7 @@ func (d *database) GetChannelsForUser(id int) ([]*sidebar.Channel, error) {
 	var parent sql.NullInt64
 	var channels []*sidebar.Channel
 	rows, err := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id").From("channels as ch").
-		Join("users_channels uc ON ( uc.channel_id_id = ch.id )").
+		Join("users_channels uc ON ( uc.channel_id = ch.id )").
 		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").
 		Where(sq.Eq{"uc.user_id": id}).RunWith(d).Query()
 
