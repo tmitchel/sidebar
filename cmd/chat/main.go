@@ -64,7 +64,7 @@ func main() {
 	if os.Getenv("PORT") != "" {
 		http.ListenAndServe(":"+os.Getenv("PORT"), accessControl(false, server.Serve()))
 	} else {
-		http.ListenAndServe(":8080", accessControl(true, server.Serve()))
+		http.ListenAndServeTLS(":8080", "localhost.pem", "localhost-key.pem", accessControl(true, server.Serve()))
 	}
 }
 
