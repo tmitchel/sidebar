@@ -518,6 +518,7 @@ func (s *server) CreateSidebar() http.HandlerFunc {
 		channel, err := s.Create.CreateChannel(&reqChannel)
 		if err != nil {
 			http.Error(w, "Unable to create sidebar", http.StatusInternalServerError)
+			logrus.Error(w, "Error creating sidebar %v", err)
 			return
 		}
 
