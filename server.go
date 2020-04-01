@@ -99,6 +99,7 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	apiRouter.Handle("/users/", s.requireAuth(s.GetUsersInChannel())).Methods("GET")       // r.URL.Query()["channel"]
 
 	apiRouter.Handle("/channel", s.requireAuth(s.CreateChannel())).Methods("POST")
+	apiRouter.Handle("/sidebar/{parent_id}/{user_id}", s.requireAuth(s.CreateSidebar())).Methods("POST")
 	apiRouter.Handle("/user", s.CreateUser()).Methods("POST")
 
 	apiRouter.Handle("/add/{user}/{channel}", s.requireAuth(s.AddUserToChannel())).Methods("POST")
@@ -189,18 +190,21 @@ func (s *server) LoadUser() http.HandlerFunc {
 		user, err := s.Get.GetUser(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get user", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
 		allChannels, err := s.Get.GetChannels()
 		if err != nil {
 			http.Error(w, "Unable to get all channels", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
 		channels, err := s.Get.GetChannelsForUser(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get channels for user", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -488,6 +492,44 @@ func (s *server) CreateChannel() http.HandlerFunc {
 		if err != nil {
 			http.Error(w, "Unable to create channel", http.StatusInternalServerError)
 			return
+		}
+
+		json.NewEncoder(w).Encode(channel)
+	}
+}
+
+func (s *server) CreateSidebar() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var reqChannel Channel
+		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
+			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
+			return
+		}
+
+		reqID, err := strconv.Atoi(mux.Vars(r)["parent_id"])
+		if err != nil {
+			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			return
+		}
+
+		reqChannel.IsSidebar = true
+		reqChannel.Parent = reqID
+
+		channel, err := s.Create.CreateChannel(&reqChannel)
+		if err != nil {
+			http.Error(w, "Unable to create sidebar", http.StatusInternalServerError)
+			return
+		}
+
+		reqID, err = strconv.Atoi(mux.Vars(r)["user_id"])
+		if err != nil {
+			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			return
+		}
+
+		err = s.Add.AddUserToChannel(reqID, channel.ID)
+		if err != nil {
+			http.Error(w, "Unable to add user to sidebar", http.StatusInternalServerError)
 		}
 
 		json.NewEncoder(w).Encode(channel)
