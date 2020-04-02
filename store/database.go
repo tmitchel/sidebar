@@ -569,7 +569,7 @@ func (d *database) GetUsers() ([]*sidebar.User, error) {
 func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 	var parent sql.NullInt64
 	var channels []*sidebar.Channel
-	rows, err := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id").From("channels as ch").
+	rows, err := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id", "ch.is_direct").From("channels as ch").
 		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").
 		RunWith(d).Query()
 	if err != nil {
@@ -578,7 +578,7 @@ func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 
 	for rows.Next() {
 		var c channel
-		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar, &parent)
+		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar, &parent, &c.Direct)
 		if err != nil {
 			return nil, errors.Errorf("Error scanning channels %v", err)
 		}
