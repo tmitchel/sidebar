@@ -155,23 +155,27 @@ func (s *server) LoadChannel() http.HandlerFunc {
 		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 		channel, err := s.Get.GetChannel(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get channel", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
 		users, err := s.Get.GetUsers()
 		if err != nil {
 			http.Error(w, "Unable to get users for channel", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
 		messages, err := s.Get.GetMessagesInChannel(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get messages for channel", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -188,6 +192,7 @@ func (s *server) LoadUser() http.HandlerFunc {
 		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 		user, err := s.Get.GetUser(reqID)
@@ -235,12 +240,14 @@ func (s *server) GetUsersInChannel() http.HandlerFunc {
 		channelID, err := strconv.Atoi(r.URL.Query().Get("channel"))
 		if err != nil {
 			http.Error(w, "Error converting channelID", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		channels, err := s.Get.GetUsersInChannel(channelID)
 		if err != nil {
 			http.Error(w, "Error converting channelID", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
@@ -253,12 +260,14 @@ func (s *server) GetChannelsForUser() http.HandlerFunc {
 		userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
 		if err != nil {
 			http.Error(w, "Error converting userID", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		channels, err := s.Get.GetChannelsForUser(userID)
 		if err != nil {
 			http.Error(w, "Error converting userID", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
@@ -271,12 +280,14 @@ func (s *server) GetSidebarsForUser() http.HandlerFunc {
 		userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
 		if err != nil {
 			http.Error(w, "Error converting userID", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		channels, err := s.Get.GetChannelsForUser(userID)
 		if err != nil {
 			http.Error(w, "Error converting userID", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
@@ -296,12 +307,14 @@ func (s *server) GetMessagesToUser() http.HandlerFunc {
 		userID, err := strconv.Atoi(r.URL.Query().Get("to_user"))
 		if err != nil {
 			http.Error(w, "Error converting userID", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		messages, err := s.Get.GetMessagesToUser(userID)
 		if err != nil {
 			http.Error(w, "Error getting messages", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
@@ -314,12 +327,14 @@ func (s *server) GetMessagesFromUser() http.HandlerFunc {
 		userID, err := strconv.Atoi(r.URL.Query().Get("from_user"))
 		if err != nil {
 			http.Error(w, "Error converting userID", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		messages, err := s.Get.GetMessagesFromUser(userID)
 		if err != nil {
 			http.Error(w, "Error getting messages", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
@@ -332,12 +347,14 @@ func (s *server) GetMessagesInChannel() http.HandlerFunc {
 		channelID, err := strconv.Atoi(r.URL.Query().Get("channel"))
 		if err != nil {
 			http.Error(w, "Error converting channelID", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		messages, err := s.Get.GetMessagesInChannel(channelID)
 		if err != nil {
 			http.Error(w, "Error getting messages", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
@@ -350,12 +367,14 @@ func (s *server) AddUserToChannel() http.HandlerFunc {
 		userID, err := strconv.Atoi(mux.Vars(r)["user"])
 		if err != nil {
 			http.Error(w, "Unable to convert user id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		channelID, err := strconv.Atoi(mux.Vars(r)["channel"])
 		if err != nil {
 			http.Error(w, "Unable to convert channel id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
@@ -373,12 +392,14 @@ func (s *server) RemoveUserFromChannel() http.HandlerFunc {
 		userID, err := strconv.Atoi(mux.Vars(r)["user"])
 		if err != nil {
 			http.Error(w, "Unable to convert user id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		channelID, err := strconv.Atoi(mux.Vars(r)["channel"])
 		if err != nil {
 			http.Error(w, "Unable to convert channel id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
@@ -416,11 +437,13 @@ func (s *server) GetChannel() http.HandlerFunc {
 		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 		channel, err := s.Get.GetChannel(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get channel", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -433,11 +456,13 @@ func (s *server) GetMessage() http.HandlerFunc {
 		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
 		if err != nil {
 			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 		message, err := s.Get.GetMessage(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get message", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -450,6 +475,7 @@ func (s *server) GetUsers() http.HandlerFunc {
 		users, err := s.Get.GetUsers()
 		if err != nil {
 			http.Error(w, "Unable to get users", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -480,6 +506,7 @@ func (s *server) GetSidebars() http.HandlerFunc {
 		channels, err := s.Get.GetChannels()
 		if err != nil {
 			http.Error(w, "Unable to get channels", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -499,6 +526,7 @@ func (s *server) GetMessages() http.HandlerFunc {
 		messages, err := s.Get.GetMessages()
 		if err != nil {
 			http.Error(w, "Unable to get messages", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -511,12 +539,14 @@ func (s *server) CreateChannel() http.HandlerFunc {
 		var reqChannel Channel
 		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
 			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		channel, err := s.Create.CreateChannel(&reqChannel)
 		if err != nil {
 			http.Error(w, "Unable to create channel", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -529,18 +559,21 @@ func (s *server) CreateDirect() http.HandlerFunc {
 		var reqChannel Channel
 		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
 			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		toID, err := strconv.Atoi(mux.Vars(r)["to_id"])
 		if err != nil {
 			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		fromID, err := strconv.Atoi(mux.Vars(r)["from_id"])
 		if err != nil {
 			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
@@ -549,6 +582,7 @@ func (s *server) CreateDirect() http.HandlerFunc {
 		if err != nil {
 			http.Error(w, "Unable to create sidebar", http.StatusInternalServerError)
 			logrus.Error(w, "Error creating sidebar %v", err)
+			logrus.Error(err)
 			return
 		}
 
@@ -575,12 +609,14 @@ func (s *server) CreateSidebar() http.HandlerFunc {
 		var reqChannel Channel
 		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
 			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		reqID, err := strconv.Atoi(mux.Vars(r)["parent_id"])
 		if err != nil {
 			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
@@ -597,12 +633,14 @@ func (s *server) CreateSidebar() http.HandlerFunc {
 		reqID, err = strconv.Atoi(mux.Vars(r)["user_id"])
 		if err != nil {
 			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		err = s.Add.AddUserToChannel(reqID, channel.ID)
 		if err != nil {
 			http.Error(w, "Unable to add user to sidebar", http.StatusInternalServerError)
+			logrus.Error(err)
 		}
 
 		json.NewEncoder(w).Encode(channel)
@@ -614,6 +652,7 @@ func (s *server) CreateUser() http.HandlerFunc {
 		var reqUser User
 		if err := json.NewDecoder(r.Body).Decode(&reqUser); err != nil {
 			http.Error(w, "Unable to decode new user", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
@@ -622,6 +661,7 @@ func (s *server) CreateUser() http.HandlerFunc {
 		user, err := s.Create.CreateUser(&reqUser, token)
 		if err != nil {
 			http.Error(w, "Unable to create user", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -634,12 +674,15 @@ func (s *server) NewToken() http.HandlerFunc {
 		user, ok := r.Context().Value(ctxKey("user_info")).(User)
 		if !ok {
 			http.Error(w, "Unable to get user from context", http.StatusInternalServerError)
+			logrus.Error("Can't get info from context")
 			return
 		}
 
 		token, err := s.Create.NewToken(user.ID)
 		if err != nil {
 			http.Error(w, "Error creating token", http.StatusInternalServerError)
+			logrus.Error(err)
+			return
 		}
 
 		json.NewEncoder(w).Encode(struct{ Token string }{token})
@@ -651,12 +694,14 @@ func (s *server) DeleteChannel() http.HandlerFunc {
 		var reqID int
 		if err := json.NewDecoder(r.Body).Decode(&reqID); err != nil {
 			http.Error(w, "Unable to decode request id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		channel, err := s.Delete.DeleteChannel(reqID)
 		if err != nil {
 			http.Error(w, "Unable to delete channel", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -669,12 +714,14 @@ func (s *server) DeleteUser() http.HandlerFunc {
 		var reqID int
 		if err := json.NewDecoder(r.Body).Decode(&reqID); err != nil {
 			http.Error(w, "Unable to decode request id", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		user, err := s.Delete.DeleteUser(reqID)
 		if err != nil {
 			http.Error(w, "Unable to delete user", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -712,12 +759,14 @@ func (s *server) Login() http.HandlerFunc {
 		var auther auth
 		if err := json.NewDecoder(r.Body).Decode(&auther); err != nil {
 			http.Error(w, "Ill-formatted login attempt", http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		}
 
 		user, err := s.Auth.Validate(auther.Email, auther.Password)
 		if err != nil || user == nil {
 			http.Error(w, "Incorrect username/password", http.StatusForbidden)
+			logrus.Error(err)
 			return
 		}
 
@@ -735,6 +784,7 @@ func (s *server) Login() http.HandlerFunc {
 		tokenString, err := token.SignedString(key)
 		if err != nil {
 			http.Error(w, "Unable to sign token", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -775,15 +825,18 @@ func (s *server) RefreshToken() http.HandlerFunc {
 
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		} else if !tkn.Valid {
 			w.WriteHeader(http.StatusUnauthorized)
+			logrus.Error(err)
 			return
 		}
 
 		// Check if user is authenticated
 		if !claims.Authenticated {
 			http.Error(w, "Forbidden", http.StatusForbidden)
+			logrus.Error(err)
 			return
 		}
 
@@ -798,6 +851,7 @@ func (s *server) RefreshToken() http.HandlerFunc {
 		tokenString, err := token.SignedString(key)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -839,15 +893,18 @@ func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
 
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
+			logrus.Error(err)
 			return
 		} else if !tkn.Valid {
 			w.WriteHeader(http.StatusUnauthorized)
+			logrus.Error(err)
 			return
 		}
 
 		// Check if user is authenticated
 		if !claims.Authenticated {
 			http.Error(w, "Forbidden", http.StatusForbidden)
+			logrus.Error(err)
 			return
 		}
 
@@ -871,6 +928,7 @@ func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
 		tokenString, err := token.SignedString(key)
 		if err != nil {
 			http.Error(w, "Unable to sign token", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
@@ -906,6 +964,7 @@ func (s *server) HandleWS() http.HandlerFunc {
 		user, ok := r.Context().Value(ctxKey("user_info")).(User)
 		if !ok {
 			http.Error(w, "Unable to get user from context", http.StatusInternalServerError)
+			logrus.Error(err)
 			return
 		}
 
