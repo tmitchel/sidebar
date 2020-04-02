@@ -530,12 +530,16 @@ func (s *server) CreateDirect() http.HandlerFunc {
 
 		err = s.Add.AddUserToChannel(toID, channel.ID)
 		if err != nil {
-			http.Error(w, "Unable to add user to sidebar", http.StatusInternalServerError)
+			http.Error(w, "Unable to add to user to direct", http.StatusInternalServerError)
+			logrus.Error(err)
+			return
 		}
 
 		err = s.Add.AddUserToChannel(fromID, channel.ID)
 		if err != nil {
-			http.Error(w, "Unable to add user to sidebar", http.StatusInternalServerError)
+			http.Error(w, "Unable to add from user to direct", http.StatusInternalServerError)
+			logrus.Error(err)
+			return
 		}
 
 		json.NewEncoder(w).Encode(channel)
