@@ -6,6 +6,7 @@ type Channel struct {
 	Name      string
 	IsSidebar bool
 	Parent    int
+	Direct    bool
 }
 
 type CompleteChannel struct {

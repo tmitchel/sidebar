@@ -100,6 +100,7 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 
 	apiRouter.Handle("/channel", s.requireAuth(s.CreateChannel())).Methods("POST")
 	apiRouter.Handle("/sidebar/{parent_id}/{user_id}", s.requireAuth(s.CreateSidebar())).Methods("POST")
+	apiRouter.Handle("/direct/{to_id}/{from_id}", s.requireAuth(s.CreateDirect())).Methods("POST")
 	apiRouter.Handle("/user/{create_token}", s.CreateUser()).Methods("POST")
 	apiRouter.Handle("/new_token", s.requireAuth(s.NewToken())).Methods("POST")
 
@@ -493,6 +494,48 @@ func (s *server) CreateChannel() http.HandlerFunc {
 		if err != nil {
 			http.Error(w, "Unable to create channel", http.StatusInternalServerError)
 			return
+		}
+
+		json.NewEncoder(w).Encode(channel)
+	}
+}
+
+func (s *server) CreateDirect() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var reqChannel Channel
+		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
+			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
+			return
+		}
+
+		toID, err := strconv.Atoi(mux.Vars(r)["to_id"])
+		if err != nil {
+			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			return
+		}
+
+		fromID, err := strconv.Atoi(mux.Vars(r)["from_id"])
+		if err != nil {
+			http.Error(w, "Unable to convert id", http.StatusBadRequest)
+			return
+		}
+
+		reqChannel.Direct = true
+		channel, err := s.Create.CreateChannel(&reqChannel)
+		if err != nil {
+			http.Error(w, "Unable to create sidebar", http.StatusInternalServerError)
+			logrus.Error(w, "Error creating sidebar %v", err)
+			return
+		}
+
+		err = s.Add.AddUserToChannel(toID, channel.ID)
+		if err != nil {
+			http.Error(w, "Unable to add user to sidebar", http.StatusInternalServerError)
+		}
+
+		err = s.Add.AddUserToChannel(fromID, channel.ID)
+		if err != nil {
+			http.Error(w, "Unable to add user to sidebar", http.StatusInternalServerError)
 		}
 
 		json.NewEncoder(w).Encode(channel)
