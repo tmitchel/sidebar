@@ -10,7 +10,8 @@ type Authenticater interface {
 // Creater provides methods to create new objects
 // that will be persisted to disk.
 type Creater interface {
-	CreateUser(*User) (*User, error)
+	NewToken(int) (string, error)
+	CreateUser(*User, string) (*User, error)
 	CreateChannel(*Channel) (*Channel, error)
 	CreateMessage(*WebSocketMessage) (*WebSocketMessage, error)
 }

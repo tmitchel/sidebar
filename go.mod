@@ -5,6 +5,7 @@ go 1.13
 require (
 	github.com/Masterminds/squirrel v1.2.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.1
 	github.com/kr/pretty v0.1.0 // indirect

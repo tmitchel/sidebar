@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/pkg/errors"
@@ -26,7 +25,8 @@ var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 // Creater ...
 type Creater interface {
-	CreateUser(*sidebar.User) (*sidebar.User, error)
+	NewToken(string, int) error
+	CreateUser(*sidebar.User, string) (*sidebar.User, error)
 	CreateChannel(*sidebar.Channel) (*sidebar.Channel, error)
 	CreateMessage(*sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error)
 }
@@ -63,8 +63,6 @@ type Getter interface {
 // Authenticater ...
 type Authenticater interface {
 	UserForAuth(string) (*sidebar.User, error)
-	// CheckToken(string) (*sidebar.User, error)
-	SetToken(string, int) error
 }
 
 // Database provides methods to query the database.
@@ -163,7 +161,7 @@ func MigrationsForTesting(d Database) error {
 	}
 	for i, u := range users {
 		u.Password, _ = bcrypt.GenerateFromPassword(u.Password, bcrypt.DefaultCost)
-		uu, err := d.CreateUser(u)
+		uu, err := createUser(d, u)
 		if err != nil {
 			return err
 		}
@@ -235,7 +233,16 @@ func MigrationsForTesting(d Database) error {
 	return nil
 }
 
-func (d *database) CreateUser(u *sidebar.User) (*sidebar.User, error) {
+func (d *database) NewToken(token string, userID int) error {
+	_, err := psql.Insert("tokens").
+		Columns("token", "creater_id").
+		Values(token, userID).
+		RunWith(d).Exec()
+
+	return err
+}
+
+func createUser(d Database, u *sidebar.User) (*sidebar.User, error) {
 	var id int
 	duser := userFromModel(u)
 	err := psql.Insert("users").
@@ -244,6 +251,42 @@ func (d *database) CreateUser(u *sidebar.User) (*sidebar.User, error) {
 		Suffix("RETURNING id").
 		RunWith(d).QueryRow().Scan(&id)
 
+	if err != nil {
+		return nil, err
+	}
+
+	duser.ID = id
+	return duser.ToModel(), nil
+}
+
+func (d *database) CreateUser(u *sidebar.User, token string) (*sidebar.User, error) {
+	var valid bool
+	err := psql.Select("valid").
+		From("tokens").Where(sq.Eq{"token": token}).
+		RunWith(d).QueryRow().Scan(&valid)
+	if err != nil {
+		return nil, err
+	}
+
+	if !valid {
+		return nil, errors.New("Token is no longer valid")
+	}
+
+	var id int
+	duser := userFromModel(u)
+	err = psql.Insert("users").
+		Columns("display_name", "email", "password").
+		Values(duser.DisplayName, duser.Email, duser.Password).
+		Suffix("RETURNING id").
+		RunWith(d).QueryRow().Scan(&id)
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = psql.Insert("tokens").
+		Columns("valid", "new_user_id").Values(false, id).
+		RunWith(d).Exec()
 	if err != nil {
 		return nil, err
 	}
@@ -333,20 +376,6 @@ func (d *database) UserForAuth(email string) (*sidebar.User, error) {
 	}
 
 	return authUser.ToModel(), nil
-}
-
-func (d *database) CheckToken(token string) (*sidebar.User, error) {
-	var u user
-	var t time.Time
-	err := psql.Select("id", "display_name", "email", "password", "t.created_at").
-		From("users").Join("tokens t ON (t.user_id = id)").
-		Where(sq.Eq{"t.token": token}).
-		RunWith(d).QueryRow().Scan(&u.ID, &u.DisplayName, &u.Email, &u.Password, &t)
-	if err != nil || u.ID == 0 {
-		return nil, errors.New("User doesn't have a token")
-	}
-
-	return u.ToModel(), nil
 }
 
 func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
@@ -621,17 +650,6 @@ func (d *database) DeleteChannel(id int) (*sidebar.Channel, error) {
 	return channel, nil
 }
 
-func (d *database) SetToken(token string, id int) error {
-	_, err := psql.Insert("tokens").
-		Columns("token", "user_id").Values(token, id).
-		RunWith(d).Exec()
-
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func migrations(db *sql.DB) error {
 	userQuery := `
 	DROP TABLE IF EXISTS users CASCADE;
@@ -682,10 +700,13 @@ func migrations(db *sql.DB) error {
 	DROP TABLE IF EXISTS tokens CASCADE;
 	CREATE TABLE tokens (
 		token TEXT NOT NULL UNIQUE,
-		user_id INT NOT NULL,
+		creater_id INT NOT NULL,
+		new_user_id INT,
+		valid BOOLEAN DEFAULT TRUE,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		PRIMARY KEY(token),
-		FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		FOREIGN KEY(creater_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY(new_user_id) REFERENCES users(id) ON DELETE CASCADE
 	);`
 
 	userMessageQuery := `

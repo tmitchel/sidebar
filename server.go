@@ -100,7 +100,8 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 
 	apiRouter.Handle("/channel", s.requireAuth(s.CreateChannel())).Methods("POST")
 	apiRouter.Handle("/sidebar/{parent_id}/{user_id}", s.requireAuth(s.CreateSidebar())).Methods("POST")
-	apiRouter.Handle("/user", s.CreateUser()).Methods("POST")
+	apiRouter.Handle("/user/{create_token}", s.CreateUser()).Methods("POST")
+	apiRouter.Handle("/new_token", s.requireAuth(s.NewToken())).Methods("POST")
 
 	apiRouter.Handle("/add/{user}/{channel}", s.requireAuth(s.AddUserToChannel())).Methods("POST")
 
@@ -545,13 +546,32 @@ func (s *server) CreateUser() http.HandlerFunc {
 			return
 		}
 
-		user, err := s.Create.CreateUser(&reqUser)
+		token := mux.Vars(r)["create_token"]
+
+		user, err := s.Create.CreateUser(&reqUser, token)
 		if err != nil {
 			http.Error(w, "Unable to create user", http.StatusInternalServerError)
 			return
 		}
 
 		json.NewEncoder(w).Encode(user)
+	}
+}
+
+func (s *server) NewToken() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := r.Context().Value(ctxKey("user_info")).(User)
+		if !ok {
+			http.Error(w, "Unable to get user from context", http.StatusInternalServerError)
+			return
+		}
+
+		token, err := s.Create.NewToken(user.ID)
+		if err != nil {
+			http.Error(w, "Error creating token", http.StatusInternalServerError)
+		}
+
+		json.NewEncoder(w).Encode(struct{ Token string }{token})
 	}
 }
 
