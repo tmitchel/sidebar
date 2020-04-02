@@ -143,13 +143,6 @@ func accessControl(h http.Handler) http.Handler {
 	})
 }
 
-func logging(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logrus.Printf("%s: %s", r.Method, r.RequestURI)
-		h.ServeHTTP(w, r)
-	})
-}
-
 func (s *server) LoadChannel() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
