@@ -34,6 +34,7 @@ type Creater interface {
 // Adder ...
 type Adder interface {
 	AddUserToChannel(int, int) error
+	RemoveUserFromChannel(int, int) error
 }
 
 // Deleter ...
@@ -298,6 +299,13 @@ func (d *database) CreateUser(u *sidebar.User, token string) (*sidebar.User, err
 func (d *database) AddUserToChannel(userID, channelID int) error {
 	_, err := psql.Insert("users_channels").
 		Columns("user_id", "channel_id").Values(userID, channelID).
+		RunWith(d).Exec()
+	return err
+}
+
+func (d *database) RemoveUserFromChannel(userID, channelID int) error {
+	_, err := psql.Delete("users_channels").
+		Where(sq.Eq{"user_id": userID, "channel_id": channelID}).
 		RunWith(d).Exec()
 	return err
 }

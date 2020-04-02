@@ -105,6 +105,7 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	apiRouter.Handle("/new_token", s.requireAuth(s.NewToken())).Methods("POST")
 
 	apiRouter.Handle("/add/{user}/{channel}", s.requireAuth(s.AddUserToChannel())).Methods("POST")
+	apiRouter.Handle("/leave/{user}/{channel}", s.requireAuth(s.RemoveUserFromChannel())).Methods("DELETE")
 
 	apiRouter.Handle("/channel", s.requireAuth(s.DeleteChannel())).Methods("DELETE")
 	apiRouter.Handle("/user", s.requireAuth(s.DeleteUser())).Methods("DELETE")
@@ -364,6 +365,29 @@ func (s *server) AddUserToChannel() http.HandlerFunc {
 
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "Successfully added user %v to channel %v", userID, channelID)
+	}
+}
+
+func (s *server) RemoveUserFromChannel() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, err := strconv.Atoi(mux.Vars(r)["user"])
+		if err != nil {
+			http.Error(w, "Unable to convert user id", http.StatusBadRequest)
+			return
+		}
+
+		channelID, err := strconv.Atoi(mux.Vars(r)["channel"])
+		if err != nil {
+			http.Error(w, "Unable to convert channel id", http.StatusBadRequest)
+			return
+		}
+
+		if err := s.Add.RemoveUserFromChannel(userID, channelID); err != nil {
+			http.Error(w, "Unable to remove user from channel", http.StatusInternalServerError)
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "Successfully removed user %v from channel %v", userID, channelID)
 	}
 }
 

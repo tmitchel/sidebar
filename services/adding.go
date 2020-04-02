@@ -18,3 +18,7 @@ func NewAdder(db store.Adder) (sidebar.Adder, error) {
 func (a *adder) AddUserToChannel(userID, channelID int) error {
 	return a.DB.AddUserToChannel(userID, channelID)
 }
+
+func (a *adder) RemoveUserFromChannel(userID, channelID int) error {
+	return a.DB.RemoveUserFromChannel(userID, channelID)
+}

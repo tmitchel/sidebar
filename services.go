@@ -23,6 +23,7 @@ type Deleter interface {
 
 type Adder interface {
 	AddUserToChannel(int, int) error
+	RemoveUserFromChannel(int, int) error
 }
 
 type Getter interface {
