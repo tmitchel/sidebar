@@ -59,7 +59,13 @@ func (c *client) readPump() {
 			}
 			return
 		}
-		c.hub.broadcast <- msg
+		storedMsg, err := c.hub.db.CreateMessage(&msg)
+		if err != nil {
+			logrus.Errorf("error storing message %v", err)
+		}
+		if storedMsg != nil {
+			c.hub.broadcast <- *storedMsg
+		}
 	}
 }
 
