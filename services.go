@@ -22,6 +22,7 @@ type Deleter interface {
 }
 
 type Adder interface {
+	ResolveChannel(int) error
 	AddUserToChannel(int, int) error
 	RemoveUserFromChannel(int, int) error
 }

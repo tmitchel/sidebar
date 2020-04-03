@@ -103,6 +103,7 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	apiRouter.Handle("/direct/{to_id}/{from_id}", s.requireAuth(s.CreateDirect())).Methods("POST")
 	apiRouter.Handle("/user/{create_token}", s.CreateUser()).Methods("POST")
 	apiRouter.Handle("/new_token", s.requireAuth(s.NewToken())).Methods("POST")
+	apiRouter.Handle("/resolve/{channel_id}", s.requireAuth(s.ResolveSidebar())).Methods("POST")
 
 	apiRouter.Handle("/add/{user}/{channel}", s.requireAuth(s.AddUserToChannel())).Methods("POST")
 	apiRouter.Handle("/leave/{user}/{channel}", s.requireAuth(s.RemoveUserFromChannel())).Methods("DELETE")
@@ -679,6 +680,27 @@ func (s *server) NewToken() http.HandlerFunc {
 		}
 
 		json.NewEncoder(w).Encode(struct{ Token string }{token})
+	}
+}
+
+func (s *server) ResolveSidebar() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sid, err := strconv.Atoi(mux.Vars(r)["channel_id"])
+		if err != nil {
+			http.Error(w, "Unable to convert request id", http.StatusBadRequest)
+			logrus.Error(err)
+			return
+		}
+
+		err = s.Add.ResolveChannel(sid)
+		if err != nil {
+			http.Error(w, "Unable to update channel", http.StatusBadRequest)
+			logrus.Error(err)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "Success")
 	}
 }
 

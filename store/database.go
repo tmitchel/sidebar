@@ -35,6 +35,7 @@ type Creater interface {
 type Adder interface {
 	AddUserToChannel(int, int) error
 	RemoveUserFromChannel(int, int) error
+	ResolveChannel(int) error
 }
 
 // Deleter ...
@@ -294,6 +295,15 @@ func (d *database) CreateUser(u *sidebar.User, token string) (*sidebar.User, err
 
 	duser.ID = id
 	return duser.ToModel(), nil
+}
+
+func (d *database) ResolveChannel(channelID int) error {
+	c, _ := d.GetChannel(channelID)
+	_, err := psql.Update("channels").
+		Set("resolved", !c.Resolved).
+		Where(sq.Eq{"id": channelID}).
+		RunWith(d).Exec()
+	return err
 }
 
 func (d *database) AddUserToChannel(userID, channelID int) error {

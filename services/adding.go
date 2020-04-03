@@ -22,3 +22,7 @@ func (a *adder) AddUserToChannel(userID, channelID int) error {
 func (a *adder) RemoveUserFromChannel(userID, channelID int) error {
 	return a.DB.RemoveUserFromChannel(userID, channelID)
 }
+
+func (a *adder) ResolveChannel(id int) error {
+	return a.DB.ResolveChannel(id)
+}
