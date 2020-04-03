@@ -10,6 +10,7 @@ type channel struct {
 	IsSidebar bool   `db:"is_sidebar"`
 	Parent    int    `db:"-"`
 	Direct    bool   `db:"is_direct"`
+	Resolved  bool   `db:"resolved"`
 }
 
 // channelFromModel converts the normal sidebar.Channel model
@@ -22,6 +23,7 @@ func channelFromModel(c *sidebar.Channel) *channel {
 		IsSidebar: c.IsSidebar,
 		Parent:    c.Parent,
 		Direct:    c.Direct,
+		Resolved:  c.Resolved,
 	}
 }
 
@@ -32,5 +34,6 @@ func (c *channel) ToModel() *sidebar.Channel {
 		IsSidebar: c.IsSidebar,
 		Parent:    c.Parent,
 		Direct:    c.Direct,
+		Resolved:  c.Resolved,
 	}
 }

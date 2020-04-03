@@ -7,6 +7,7 @@ type Channel struct {
 	IsSidebar bool
 	Parent    int
 	Direct    bool
+	Resolved  bool
 }
 
 type CompleteChannel struct {

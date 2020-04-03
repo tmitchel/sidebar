@@ -347,7 +347,8 @@ func (d *database) GetUsersInChannel(id int) ([]*sidebar.User, error) {
 func (d *database) GetChannelsForUser(id int) ([]*sidebar.Channel, error) {
 	var parent sql.NullInt64
 	var channels []*sidebar.Channel
-	rows, err := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id", "ch.is_direct").From("channels as ch").
+	rows, err := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
+		From("channels as ch").
 		Join("users_channels uc ON ( uc.channel_id = ch.id )").
 		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").
 		Where(sq.Eq{"uc.user_id": id}).RunWith(d).Query()
@@ -359,7 +360,7 @@ func (d *database) GetChannelsForUser(id int) ([]*sidebar.Channel, error) {
 
 	for rows.Next() {
 		var c channel
-		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar, &parent, &c.Direct)
+		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar, &parent, &c.Direct, &c.Resolved)
 		if err != nil {
 			continue
 		}
@@ -414,9 +415,10 @@ func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 func (d *database) GetChannel(id int) (*sidebar.Channel, error) {
 	var parent sql.NullInt64
 	var c channel
-	row := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id", "ch.is_direct").From("channels as ch").
+	row := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
+		From("channels as ch").
 		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").Where(sq.Eq{"ch.id": id}).RunWith(d).QueryRow()
-	err := row.Scan(&c.ID, &c.Name, &c.IsSidebar, &parent, &c.Direct)
+	err := row.Scan(&c.ID, &c.Name, &c.IsSidebar, &parent, &c.Direct, &c.Resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -581,7 +583,8 @@ func (d *database) GetUsers() ([]*sidebar.User, error) {
 func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 	var parent sql.NullInt64
 	var channels []*sidebar.Channel
-	rows, err := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id", "ch.is_direct").From("channels as ch").
+	rows, err := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
+		From("channels as ch").
 		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").
 		RunWith(d).Query()
 	if err != nil {
@@ -590,7 +593,7 @@ func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 
 	for rows.Next() {
 		var c channel
-		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar, &parent, &c.Direct)
+		err := rows.Scan(&c.ID, &c.Name, &c.IsSidebar, &parent, &c.Direct, &c.Resolved)
 		if err != nil {
 			return nil, errors.Errorf("Error scanning channels %v", err)
 		}
@@ -689,6 +692,7 @@ func migrations(db *sql.DB) error {
 		display_name TEXT UNIQUE NOT NULL,
 		is_sidebar BOOLEAN DEFAULT FALSE,
 		is_direct BOOLEAN DEFAULT FALSE,
+		resolved BOOLEAN DEFAULT FALSE,
 		PRIMARY KEY(id)
 	);`
 
