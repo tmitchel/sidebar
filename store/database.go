@@ -455,7 +455,11 @@ func (d *database) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocke
 	}
 
 	dmessage.ID = id
-	return dmessage.ToModel(), nil
+	mod := dmessage.ToModel()
+	mod.ToUser = m.ToUser
+	mod.FromUser = m.FromUser
+	mod.Channel = m.Channel
+	return mod, nil
 }
 
 func (d *database) GetMessage(id int) (*sidebar.WebSocketMessage, error) {

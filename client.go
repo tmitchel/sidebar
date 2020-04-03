@@ -60,6 +60,7 @@ func (c *client) readPump() {
 			return
 		}
 		storedMsg, err := c.hub.db.CreateMessage(&msg)
+		logrus.Infof("%+v\n%+v\n", msg, storedMsg)
 		if err != nil {
 			logrus.Errorf("error storing message %v", err)
 		}
