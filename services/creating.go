@@ -37,6 +37,9 @@ func (c *creater) CreateUser(u *sidebar.User, token string) (*sidebar.User, erro
 	}
 
 	u.Password = hashed
+	if u.ProfileImg == "" {
+		u.ProfileImg = "https://randomuser.me/api/portraits/women/81.jpg"
+	}
 	return c.DB.CreateUser(u, token)
 }
 

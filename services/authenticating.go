@@ -1,8 +1,7 @@
 package services
 
 import (
-	"errors"
-
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/sirupsen/logrus"
@@ -30,7 +29,8 @@ func (a *auth) Validate(email, password string) (*sidebar.User, error) {
 	}
 
 	if err := bcrypt.CompareHashAndPassword(authUser.Password, []byte(password)); err != nil {
-		return nil, errors.New("Incorrect password")
+		logrus.Error(err)
+		return nil, errors.Wrap(err, "Incorrect password")
 	}
 
 	return a.DB.GetUser(authUser.ID)

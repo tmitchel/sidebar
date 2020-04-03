@@ -248,8 +248,8 @@ func createUser(d Database, u *sidebar.User) (*sidebar.User, error) {
 	var id int
 	duser := userFromModel(u)
 	err := psql.Insert("users").
-		Columns("display_name", "email", "password").
-		Values(duser.DisplayName, duser.Email, duser.Password).
+		Columns("display_name", "email", "password", "profile_image").
+		Values(duser.DisplayName, duser.Email, duser.Password, "https://randomuser.me/api/portraits/women/81.jpg").
 		Suffix("RETURNING id").
 		RunWith(d).QueryRow().Scan(&id)
 
@@ -277,8 +277,8 @@ func (d *database) CreateUser(u *sidebar.User, token string) (*sidebar.User, err
 	var id int
 	duser := userFromModel(u)
 	err = psql.Insert("users").
-		Columns("display_name", "email", "password").
-		Values(duser.DisplayName, duser.Email, duser.Password).
+		Columns("display_name", "email", "password", "profile_image").
+		Values(duser.DisplayName, duser.Email, duser.Password, duser.ProfileImg).
 		Suffix("RETURNING id").
 		RunWith(d).QueryRow().Scan(&id)
 
@@ -286,9 +286,11 @@ func (d *database) CreateUser(u *sidebar.User, token string) (*sidebar.User, err
 		return nil, err
 	}
 
-	_, err = psql.Insert("tokens").
-		Columns("valid", "new_user_id").Values(false, id).
+	_, err = psql.Update("tokens").
+		Set("valid", false).Set("new_user_id", id).
+		Where(sq.Eq{"token": token}).
 		RunWith(d).Exec()
+
 	if err != nil {
 		return nil, err
 	}
@@ -322,9 +324,9 @@ func (d *database) RemoveUserFromChannel(userID, channelID int) error {
 
 func (d *database) GetUser(id int) (*sidebar.User, error) {
 	var u user
-	row := psql.Select("id", "display_name", "email", "password").
+	row := psql.Select("id", "display_name", "email", "password", "profile_image").
 		From("users").Where(sq.Eq{"id": id}).RunWith(d).QueryRow()
-	err := row.Scan(&u.ID, &u.DisplayName, &u.Email, &u.Password)
+	err := row.Scan(&u.ID, &u.DisplayName, &u.Email, &u.Password, &u.ProfileImg)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +336,7 @@ func (d *database) GetUser(id int) (*sidebar.User, error) {
 
 func (d *database) GetUsersInChannel(id int) ([]*sidebar.User, error) {
 	var users []*sidebar.User
-	rows, err := psql.Select("id", "display_name", "email", "password").
+	rows, err := psql.Select("id", "display_name", "email", "password", "profile_image").
 		From("users").Join("users_channels uc ON ( uc.user_id = id )").
 		Where(sq.Eq{"uc.channel_id": id}).RunWith(d).Query()
 	if err != nil {
@@ -344,7 +346,7 @@ func (d *database) GetUsersInChannel(id int) ([]*sidebar.User, error) {
 
 	for rows.Next() {
 		var u user
-		err := rows.Scan(&u.ID, &u.DisplayName, &u.Email, &u.Password)
+		err := rows.Scan(&u.ID, &u.DisplayName, &u.Email, &u.Password, &u.ProfileImg)
 		if err != nil {
 			continue
 		}
@@ -571,7 +573,7 @@ func (d *database) GetMessagesToUser(id int) ([]*sidebar.WebSocketMessage, error
 
 func (d *database) GetUsers() ([]*sidebar.User, error) {
 	var users []*sidebar.User
-	rows, err := psql.Select("id", "email", "display_name", "password").From("users").
+	rows, err := psql.Select("id", "email", "display_name", "password", "profile_image").From("users").
 		RunWith(d).Query()
 	if err != nil {
 		return nil, errors.New("Unable to find any users")
@@ -579,7 +581,7 @@ func (d *database) GetUsers() ([]*sidebar.User, error) {
 
 	for rows.Next() {
 		var u user
-		err := rows.Scan(&u.ID, &u.Email, &u.DisplayName, &u.Password)
+		err := rows.Scan(&u.ID, &u.Email, &u.DisplayName, &u.Password, &u.ProfileImg)
 		if err != nil {
 			return nil, errors.New("Error scanning users")
 		}
@@ -683,6 +685,7 @@ func migrations(db *sql.DB) error {
 		display_name TEXT UNIQUE NOT NULL,
 		email TEXT UNIQUE NOT NULL,
 		password TEXT NOT NULL,
+		profile_image TEXT NOT NULL,
 		PRIMARY KEY(id)
 	);`
 

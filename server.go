@@ -642,22 +642,63 @@ func (s *server) CreateSidebar() http.HandlerFunc {
 }
 
 func (s *server) CreateUser() http.HandlerFunc {
+	type Token struct {
+		UserID        int
+		Email         string
+		UserName      string
+		Authenticated bool
+		jwt.StandardClaims
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		var reqUser User
+		token := mux.Vars(r)["create_token"]
+		var reqUser SignupUser
 		if err := json.NewDecoder(r.Body).Decode(&reqUser); err != nil {
 			http.Error(w, "Unable to decode new user", http.StatusBadRequest)
 			logrus.Error(err)
 			return
 		}
 
-		token := mux.Vars(r)["create_token"]
-
-		user, err := s.Create.CreateUser(&reqUser, token)
+		converted := User{
+			ID:          reqUser.ID,
+			DisplayName: reqUser.DisplayName,
+			Email:       reqUser.Email,
+			Password:    []byte(reqUser.Password),
+			ProfileImg:  reqUser.ProfileImg,
+		}
+		user, err := s.Create.CreateUser(&converted, token)
 		if err != nil {
 			http.Error(w, "Unable to create user", http.StatusInternalServerError)
 			logrus.Error(err)
 			return
 		}
+
+		expiration := time.Now().Add(time.Minute * 15)
+		claims := &Token{
+			UserID:        user.ID,
+			Email:         user.Email,
+			UserName:      user.DisplayName,
+			Authenticated: true,
+			StandardClaims: jwt.StandardClaims{
+				ExpiresAt: expiration.Unix(),
+			},
+		}
+
+		userToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		tokenString, err := userToken.SignedString(key)
+		if err != nil {
+			http.Error(w, "Unable to sign token", http.StatusInternalServerError)
+			logrus.Error(err)
+			return
+		}
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "chat-cook",
+			Value:    tokenString,
+			Expires:  expiration,
+			HttpOnly: true,
+			SameSite: http.SameSiteNoneMode,
+			Secure:   true,
+		})
 
 		json.NewEncoder(w).Encode(user)
 	}

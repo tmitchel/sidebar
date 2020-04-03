@@ -9,6 +9,7 @@ type user struct {
 	DisplayName string `db:"display_name"`
 	Email       string `db:"email"`
 	Password    []byte `db:"password"`
+	ProfileImg  string `db:"profile_image"`
 }
 
 // userFromModel converts the normal sidebar.User model
@@ -20,6 +21,7 @@ func userFromModel(u *sidebar.User) *user {
 		DisplayName: u.DisplayName,
 		Email:       u.Email,
 		Password:    u.Password,
+		ProfileImg:  u.ProfileImg,
 	}
 }
 
@@ -29,6 +31,7 @@ func (u *user) ToModel() *sidebar.User {
 		DisplayName: u.DisplayName,
 		Email:       u.Email,
 		Password:    u.Password,
+		ProfileImg:  u.ProfileImg,
 	}
 }
 
