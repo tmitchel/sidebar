@@ -19,7 +19,6 @@ type SignupUser struct {
 }
 
 type CompleteUser struct {
-	User            User
-	Channels        []*Channel
-	ChannelsForUser []*Channel
+	User     User
+	Channels []*ChannelForUser
 }

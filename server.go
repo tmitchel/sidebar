@@ -189,6 +189,7 @@ func (s *server) LoadUser() http.HandlerFunc {
 			logrus.Error(err)
 			return
 		}
+
 		user, err := s.Get.GetUser(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get user", http.StatusInternalServerError)
@@ -203,17 +204,29 @@ func (s *server) LoadUser() http.HandlerFunc {
 			return
 		}
 
-		channels, err := s.Get.GetChannelsForUser(reqID)
+		channelsForUser, err := s.Get.GetChannelsForUser(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get channels for user", http.StatusInternalServerError)
 			logrus.Error(err)
 			return
 		}
 
+		channelWithInfo := make([]*ChannelForUser, len(allChannels))
+		var matched bool
+		for i, c := range allChannels {
+			matched = false
+			for _, cc := range channelsForUser {
+				if c.ID == cc.ID {
+					matched = true
+					break
+				}
+			}
+			channelWithInfo[i] = &ChannelForUser{Channel: *c, Member: matched}
+		}
+
 		json.NewEncoder(w).Encode(CompleteUser{
-			User:            *user,
-			ChannelsForUser: channels,
-			Channels:        allChannels,
+			User:     *user,
+			Channels: channelWithInfo,
 		})
 	}
 }

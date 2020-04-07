@@ -15,3 +15,8 @@ type CompleteChannel struct {
 	UsersInChannel    []*User
 	MessagesInChannel []*WebSocketMessage
 }
+
+type ChannelForUser struct {
+	Channel
+	Member bool
+}
