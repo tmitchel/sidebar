@@ -61,6 +61,7 @@ func main() {
 	if u, err := get.GetUsers(); err != nil {
 		logrus.Fatal("Can't query for users on start")
 	} else if len(u) == 0 {
+		logrus.Info("creating initial user")
 		hashed, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("DEFAULT_PASSWORD")), bcrypt.DefaultCost)
 		if err != nil {
 			logrus.Fatal("Error hashing password")
