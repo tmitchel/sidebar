@@ -1,2 +1,4 @@
 localhost.pem
 localhost-key.pem
+.env
+docker-data

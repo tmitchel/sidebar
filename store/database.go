@@ -16,8 +16,8 @@ import (
 const (
 	host     = "localhost"
 	port     = 5432
-	psqluser = "postgres"
-	password = "example"
+	psqluser = "admin"
+	password = "admin"
 	dbname   = "sidebar"
 )
 
@@ -85,14 +85,7 @@ type database struct {
 
 // New connects to the postgres database
 // and returns that connection.
-func New() (Database, error) {
-	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
-		"password=%s dbname=%s sslmode=disable",
-		host, port, psqluser, password, dbname)
-
-	if os.Getenv("DATABASE_URL") != "" {
-		psqlInfo = os.Getenv("DATABASE_URL")
-	}
+func New(psqlInfo string) (Database, error) {
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error opening database")
@@ -242,6 +235,23 @@ func (d *database) NewToken(token string, userID int) error {
 		RunWith(d).Exec()
 
 	return err
+}
+
+func CreateUserNoToken(d Database, u *sidebar.User) (*sidebar.User, error) {
+	var id int
+	duser := userFromModel(u)
+	err := psql.Insert("users").
+		Columns("display_name", "email", "password", "profile_image").
+		Values(duser.DisplayName, duser.Email, duser.Password, "https://randomuser.me/api/portraits/women/81.jpg").
+		Suffix("RETURNING id").
+		RunWith(d).QueryRow().Scan(&id)
+
+	if err != nil {
+		return nil, err
+	}
+
+	duser.ID = id
+	return duser.ToModel(), nil
 }
 
 func createUser(d Database, u *sidebar.User) (*sidebar.User, error) {
@@ -730,7 +740,7 @@ func migrations(db *sql.DB) error {
 	DROP TABLE IF EXISTS tokens CASCADE;
 	CREATE TABLE tokens (
 		token TEXT NOT NULL UNIQUE,
-		creater_id INT NOT NULL,
+		creater_id INT,
 		new_user_id INT,
 		valid BOOLEAN DEFAULT TRUE,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

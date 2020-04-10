@@ -1,36 +1,35 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 	"github.com/tmitchel/sidebar"
 	"github.com/tmitchel/sidebar/services"
 	"github.com/tmitchel/sidebar/store"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
-	var db store.Database
-	if os.Getenv("SBDEV") == "true" {
-		logrus.Info("Setting up default database to test frontend")
-		var err error
-		db, err = store.NewWithMigration("sidebar")
-		if err != nil {
-			logrus.Fatal(err)
-		}
+	err := godotenv.Load()
+	if err != nil {
+		logrus.Error("Error loading .env file. If not deploying, consider checking.")
+	}
 
-		err = store.MigrationsForTesting(db)
-		if err != nil {
-			logrus.Error("Error setting up migrations for testing the frontend")
-			logrus.Fatal(err)
-		}
+	var dbConn string
+	if os.Getenv("PRODDY") == "true" {
+		dbConn = os.Getenv("DATABASE_URL")
 	} else {
-		var err error
-		db, err = store.New()
-		if err != nil {
-			logrus.Fatal(err)
-		}
+		dbConn = fmt.Sprintf("host=localhost port=5432 user=%s "+
+			"password=%s dbname=%s sslmode=disable",
+			os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"), os.Getenv("POSTGRES_DB"))
+	}
+	db, err := store.New(dbConn)
+	if err != nil {
+		logrus.Fatal(err)
 	}
 	defer db.Close()
 
@@ -57,6 +56,20 @@ func main() {
 	get, err := services.NewGetter(db)
 	if err != nil {
 		logrus.Fatal(err)
+	}
+
+	if u, err := get.GetUsers(); err != nil {
+		logrus.Fatal("Can't query for users on start")
+	} else if len(u) == 0 {
+		hashed, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("DEFAULT_PASSWORD")), bcrypt.DefaultCost)
+		if err != nil {
+			logrus.Fatal("Error hashing password")
+		}
+		store.CreateUserNoToken(db, &sidebar.User{
+			DisplayName: os.Getenv("DEFAULT_DISPLAYNAME"),
+			Email:       os.Getenv("DEFAULT_EMAIL"),
+			Password:    hashed,
+		})
 	}
 
 	server := sidebar.NewServer(auth, create, delete, add, get)
