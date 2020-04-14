@@ -983,32 +983,32 @@ func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
 			DisplayName: claims.UserName,
 		}
 
-		expiration := time.Now().Add(15 * time.Minute)
-		claims = &Token{
-			UserID:        user.ID,
-			Email:         user.Email,
-			UserName:      user.DisplayName,
-			Authenticated: true,
-			StandardClaims: jwt.StandardClaims{
-				ExpiresAt: expiration.Unix(),
-			},
-		}
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		tokenString, err := token.SignedString(key)
-		if err != nil {
-			http.Error(w, "Unable to sign token", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
-		}
+		// expiration := time.Now().Add(15 * time.Minute)
+		// claims = &Token{
+		// 	UserID:        user.ID,
+		// 	Email:         user.Email,
+		// 	UserName:      user.DisplayName,
+		// 	Authenticated: true,
+		// 	StandardClaims: jwt.StandardClaims{
+		// 		ExpiresAt: expiration.Unix(),
+		// 	},
+		// }
+		// token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		// tokenString, err := token.SignedString(key)
+		// if err != nil {
+		// 	http.Error(w, "Unable to sign token", http.StatusInternalServerError)
+		// 	logrus.Error(err)
+		// 	return
+		// }
 
-		http.SetCookie(w, &http.Cookie{
-			Name:     "chat-cook",
-			Value:    tokenString,
-			Expires:  expiration,
-			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
-			Secure:   true,
-		})
+		// http.SetCookie(w, &http.Cookie{
+		// 	Name:     "chat-cook",
+		// 	Value:    tokenString,
+		// 	Expires:  expiration,
+		// 	HttpOnly: true,
+		// 	SameSite: http.SameSiteNoneMode,
+		// 	Secure:   true,
+		// })
 
 		ctx := context.WithValue(r.Context(), ctxKey("user_info"), user)
 		f(w, r.WithContext(ctx))
