@@ -66,6 +66,7 @@ func main() {
 		if err != nil {
 			logrus.Fatal("Error hashing password")
 		}
+		logrus.Info("Creating default user")
 		store.CreateUserNoToken(db, &sidebar.User{
 			DisplayName: os.Getenv("DEFAULT_DISPLAYNAME"),
 			Email:       os.Getenv("DEFAULT_EMAIL"),
