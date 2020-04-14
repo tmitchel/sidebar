@@ -755,7 +755,6 @@ func migrations(db *sql.DB) error {
 		user_to_id INT,
 		user_from_id INT NOT NULL,
 		message_id INT NOT NULL,
-		FOREIGN KEY(user_to_id) REFERENCES users(id) ON DELETE CASCADE,
 		FOREIGN KEY(user_from_id) REFERENCES users(id) ON DELETE CASCADE,
 		FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
 	);`
