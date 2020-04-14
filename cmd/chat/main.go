@@ -58,6 +58,11 @@ func main() {
 		logrus.Fatal(err)
 	}
 
+	up, err := services.NewUpdater(db)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
 	if u, err := get.GetUsers(); err != nil {
 		logrus.Fatal("Can't query for users on start")
 	} else if len(u) == 0 {
@@ -74,7 +79,7 @@ func main() {
 		})
 	}
 
-	server := sidebar.NewServer(auth, create, delete, add, get)
+	server := sidebar.NewServer(auth, create, delete, add, get, up)
 
 	if os.Getenv("PORT") != "" {
 		http.ListenAndServe(":"+os.Getenv("PORT"), accessControl(false, server.Serve()))

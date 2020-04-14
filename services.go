@@ -43,3 +43,8 @@ type Getter interface {
 	GetMessagesFromUser(int) ([]*WebSocketMessage, error)
 	GetMessagesToUser(int) ([]*WebSocketMessage, error)
 }
+
+type Updater interface {
+	UpdateUserInfo(*User) error
+	UpdateUserPassword(int, []byte, []byte) error
+}

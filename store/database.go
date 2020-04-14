@@ -62,6 +62,12 @@ type Getter interface {
 	GetMessagesToUser(int) ([]*sidebar.WebSocketMessage, error)
 }
 
+// Updater ...
+type Updater interface {
+	UpdateUserInformation(*sidebar.User) error
+	UpdateUserPassword(int, []byte) error
+}
+
 // Authenticater ...
 type Authenticater interface {
 	UserForAuth(string) (*sidebar.User, error)
@@ -73,6 +79,7 @@ type Database interface {
 	Deleter
 	Creater
 	Getter
+	Updater
 	Authenticater
 	sq.BaseRunner
 
@@ -657,6 +664,26 @@ func (d *database) GetMessages() ([]*sidebar.WebSocketMessage, error) {
 	}
 
 	return messages, nil
+}
+
+func (d *database) UpdateUserInformation(u *sidebar.User) error {
+	_, err := psql.Update("users").
+		Set("display_name", u.DisplayName).
+		Set("email", u.Email).
+		Set("profile_image", u.ProfileImg).
+		Where(sq.Eq{"id": u.ID}).
+		RunWith(d).Exec()
+
+	return err
+}
+
+func (d *database) UpdateUserPassword(id int, password []byte) error {
+	_, err := psql.Update("users").
+		Set("password", password).
+		Where(sq.Eq{"id": id}).
+		RunWith(d).Exec()
+
+	return err
 }
 
 func (d *database) DeleteUser(id int) (*sidebar.User, error) {

@@ -57,13 +57,14 @@ type server struct {
 	Delete Deleter
 	Add    Adder
 	Get    Getter
+	Up     Updater
 }
 
 // NewServer receives all services needed to provide functionality
 // then uses those services to spin-up an HTTP server. A hub for
 // handling Websocket connections is also started in a goroutine.
 // These things are wrapped in the server and returned.
-func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, get Getter) Server {
+func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, get Getter, up Updater) Server {
 	hub := newChathub(create)
 
 	s := &server{
@@ -73,6 +74,7 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 		Delete: delete,
 		Add:    add,
 		Get:    get,
+		Up:     up,
 	}
 
 	router := mux.NewRouter().StrictSlash(true)
@@ -104,6 +106,8 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	apiRouter.Handle("/user/{create_token}", s.CreateUser()).Methods("POST")
 	apiRouter.Handle("/new_token", s.requireAuth(s.NewToken())).Methods("POST")
 	apiRouter.Handle("/resolve/{channel_id}", s.requireAuth(s.ResolveSidebar())).Methods("POST")
+	apiRouter.Handle("/update-userinfo", s.requireAuth(s.UpdateUserInfo())).Methods("POST")
+	apiRouter.Handle("/update-userpass", s.requireAuth(s.UpdateUserPassword())).Methods("POST")
 
 	apiRouter.Handle("/add/{user}/{channel}", s.requireAuth(s.AddUserToChannel())).Methods("POST")
 	apiRouter.Handle("/leave/{user}/{channel}", s.requireAuth(s.RemoveUserFromChannel())).Methods("DELETE")
@@ -130,7 +134,7 @@ func (s *server) Serve() *mux.Router {
 	return s.router
 }
 
-func accessControl(h http.Handler) http.Handler {
+func accessControl(h http.Handler) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS, PUT")
@@ -142,6 +146,86 @@ func accessControl(h http.Handler) http.Handler {
 
 		h.ServeHTTP(w, r)
 	})
+}
+
+func (s *server) UpdateUserPassword() http.HandlerFunc {
+	type updatePass struct {
+		ID          int
+		OldPassword string `json:"old_password"`
+		NewPassword string `json:"new_password"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		var payload updatePass
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "Unable to decode payload", http.StatusBadRequest)
+			logrus.Error(err)
+			return
+		}
+
+		currentUser, ok := r.Context().Value(ctxKey("user_info")).(User)
+		if !ok {
+			http.Error(w, "Unable to decode current user", http.StatusBadRequest)
+			logrus.Error("Unable to decode current user")
+			return
+		}
+
+		if payload.ID != currentUser.ID {
+			http.Error(w, "Request user doesn't match current user", http.StatusBadRequest)
+			logrus.Errorf("Request user doesn't match current user. Current: %v Request: %v", currentUser.ID, payload.ID)
+			return
+		}
+
+		err := s.Up.UpdateUserPassword(payload.ID, []byte(payload.OldPassword), []byte(payload.NewPassword))
+		if err != nil {
+			http.Error(w, "Error updating user info", http.StatusBadRequest)
+			logrus.Errorf("Error updating user info %v", err)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "Success")
+	}
+}
+
+func (s *server) UpdateUserInfo() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var reqUser User
+		if err := json.NewDecoder(r.Body).Decode(&reqUser); err != nil {
+			http.Error(w, "Unable to decode new user", http.StatusBadRequest)
+			logrus.Error(err)
+			return
+		}
+
+		currentUser, ok := r.Context().Value(ctxKey("user_info")).(User)
+		if !ok {
+			http.Error(w, "Unable to decode current user", http.StatusBadRequest)
+			logrus.Error("Unable to decode current user")
+			return
+		}
+
+		if reqUser.ID != currentUser.ID {
+			http.Error(w, "Request user doesn't match current user", http.StatusBadRequest)
+			logrus.Errorf("Request user doesn't match current user. Current: %v Request: %v", currentUser.ID, reqUser.ID)
+			return
+		}
+
+		fmt.Printf("%+v\n", reqUser)
+		err := s.Up.UpdateUserInfo(&reqUser)
+		if err != nil {
+			http.Error(w, "Error updating user info", http.StatusBadRequest)
+			logrus.Errorf("Error updating user info %v", err)
+			return
+		}
+
+		newUser, err := s.Get.GetUser(reqUser.ID)
+		if err != nil {
+			http.Error(w, "Error getting updated user", http.StatusBadRequest)
+			logrus.Errorf("Error getting updated user %v", err)
+			return
+		}
+
+		json.NewEncoder(w).Encode(newUser)
+	}
 }
 
 func (s *server) LoadChannel() http.HandlerFunc {
