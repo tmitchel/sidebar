@@ -526,7 +526,7 @@ func (d *database) GetMessagesInChannel(id int) ([]*sidebar.WebSocketMessage, er
 	for rows.Next() {
 		var m webSocketMessage
 		var channel, toUser, fromUser int
-		err := rows.Scan(&m.ID, &m.Content, &m.Event, &channel, &toUser, &fromUser)
+		err := rows.Scan(&m.ID, &m.Content, &m.Event, &channel, &fromUser, &toUser)
 		if err != nil {
 			return nil, errors.New("Error scanning for message")
 		}
