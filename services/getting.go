@@ -15,15 +15,15 @@ func NewGetter(db store.Getter) (sidebar.Getter, error) {
 	}, nil
 }
 
-func (g *getter) GetUser(id int) (*sidebar.User, error) {
+func (g *getter) GetUser(id string) (*sidebar.User, error) {
 	return g.DB.GetUser(id)
 }
 
-func (g *getter) GetChannel(id int) (*sidebar.Channel, error) {
+func (g *getter) GetChannel(id string) (*sidebar.Channel, error) {
 	return g.DB.GetChannel(id)
 }
 
-func (g *getter) GetMessage(id int) (*sidebar.WebSocketMessage, error) {
+func (g *getter) GetMessage(id string) (*sidebar.WebSocketMessage, error) {
 	return g.DB.GetMessage(id)
 }
 
@@ -39,22 +39,22 @@ func (g *getter) GetMessages() ([]*sidebar.WebSocketMessage, error) {
 	return g.DB.GetMessages()
 }
 
-func (g *getter) GetUsersInChannel(id int) ([]*sidebar.User, error) {
+func (g *getter) GetUsersInChannel(id string) ([]*sidebar.User, error) {
 	return g.DB.GetUsersInChannel(id)
 }
 
-func (g *getter) GetChannelsForUser(id int) ([]*sidebar.Channel, error) {
+func (g *getter) GetChannelsForUser(id string) ([]*sidebar.Channel, error) {
 	return g.DB.GetChannelsForUser(id)
 }
 
-func (g *getter) GetMessagesInChannel(id int) ([]*sidebar.WebSocketMessage, error) {
+func (g *getter) GetMessagesInChannel(id string) ([]*sidebar.WebSocketMessage, error) {
 	return g.DB.GetMessagesInChannel(id)
 }
 
-func (g *getter) GetMessagesFromUser(id int) ([]*sidebar.WebSocketMessage, error) {
+func (g *getter) GetMessagesFromUser(id string) ([]*sidebar.WebSocketMessage, error) {
 	return g.DB.GetMessagesFromUser(id)
 }
 
-func (g *getter) GetMessagesToUser(id int) ([]*sidebar.WebSocketMessage, error) {
+func (g *getter) GetMessagesToUser(id string) ([]*sidebar.WebSocketMessage, error) {
 	return g.DB.GetMessagesToUser(id)
 }

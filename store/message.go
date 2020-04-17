@@ -3,9 +3,9 @@ package store
 import "github.com/tmitchel/sidebar"
 
 type webSocketMessage struct {
-	ID      int    `db:"id"`
-	Event   int64  `db:"event"`
-	Content string `db:"content"`
+	ID      string
+	Event   int64
+	Content string
 }
 
 // messageFromModel converts the normal sidebar.WebSocketMessage model

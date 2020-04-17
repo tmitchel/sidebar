@@ -5,12 +5,12 @@ import (
 )
 
 type channel struct {
-	ID        int    `db:"id"`
-	Name      string `db:"display_name"`
-	IsSidebar bool   `db:"is_sidebar"`
-	Parent    int    `db:"-"`
-	Direct    bool   `db:"is_direct"`
-	Resolved  bool   `db:"resolved"`
+	ID        string
+	Name      string
+	IsSidebar bool
+	Parent    string
+	Direct    bool
+	Resolved  bool
 }
 
 // channelFromModel converts the normal sidebar.Channel model

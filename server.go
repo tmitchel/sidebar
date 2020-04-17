@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -150,7 +149,7 @@ func accessControl(h http.Handler) http.HandlerFunc {
 
 func (s *server) UpdateUserPassword() http.HandlerFunc {
 	type updatePass struct {
-		ID          int
+		ID          string
 		OldPassword string `json:"old_password"`
 		NewPassword string `json:"new_password"`
 	}
@@ -230,12 +229,7 @@ func (s *server) UpdateUserInfo() http.HandlerFunc {
 
 func (s *server) LoadChannel() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
-		if err != nil {
-			http.Error(w, "Unable to convert id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
+		reqID := mux.Vars(r)["id"]
 		channel, err := s.Get.GetChannel(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get channel", http.StatusInternalServerError)
@@ -267,13 +261,7 @@ func (s *server) LoadChannel() http.HandlerFunc {
 
 func (s *server) LoadUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
-		if err != nil {
-			http.Error(w, "Unable to convert id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
+		reqID := mux.Vars(r)["id"]
 		user, err := s.Get.GetUser(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get user", http.StatusInternalServerError)
@@ -328,13 +316,7 @@ func (s *server) OnlineUsers() http.HandlerFunc {
 
 func (s *server) GetUsersInChannel() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		channelID, err := strconv.Atoi(r.URL.Query().Get("channel"))
-		if err != nil {
-			http.Error(w, "Error converting channelID", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
+		channelID := r.URL.Query().Get("channel")
 		channels, err := s.Get.GetUsersInChannel(channelID)
 		if err != nil {
 			http.Error(w, "Error converting channelID", http.StatusBadRequest)
@@ -348,13 +330,7 @@ func (s *server) GetUsersInChannel() http.HandlerFunc {
 
 func (s *server) GetChannelsForUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
-		if err != nil {
-			http.Error(w, "Error converting userID", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
+		userID := r.URL.Query().Get("user_id")
 		channels, err := s.Get.GetChannelsForUser(userID)
 		if err != nil {
 			http.Error(w, "Error converting userID", http.StatusBadRequest)
@@ -368,13 +344,7 @@ func (s *server) GetChannelsForUser() http.HandlerFunc {
 
 func (s *server) GetSidebarsForUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID, err := strconv.Atoi(r.URL.Query().Get("user_id"))
-		if err != nil {
-			http.Error(w, "Error converting userID", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
+		userID := r.URL.Query().Get("user_id")
 		channels, err := s.Get.GetChannelsForUser(userID)
 		if err != nil {
 			http.Error(w, "Error converting userID", http.StatusBadRequest)
@@ -395,13 +365,7 @@ func (s *server) GetSidebarsForUser() http.HandlerFunc {
 
 func (s *server) GetMessagesToUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID, err := strconv.Atoi(r.URL.Query().Get("to_user"))
-		if err != nil {
-			http.Error(w, "Error converting userID", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
+		userID := r.URL.Query().Get("to_user")
 		messages, err := s.Get.GetMessagesToUser(userID)
 		if err != nil {
 			http.Error(w, "Error getting messages", http.StatusBadRequest)
@@ -415,13 +379,7 @@ func (s *server) GetMessagesToUser() http.HandlerFunc {
 
 func (s *server) GetMessagesFromUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID, err := strconv.Atoi(r.URL.Query().Get("from_user"))
-		if err != nil {
-			http.Error(w, "Error converting userID", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
+		userID := r.URL.Query().Get("from_user")
 		messages, err := s.Get.GetMessagesFromUser(userID)
 		if err != nil {
 			http.Error(w, "Error getting messages", http.StatusBadRequest)
@@ -435,13 +393,7 @@ func (s *server) GetMessagesFromUser() http.HandlerFunc {
 
 func (s *server) GetMessagesInChannel() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		channelID, err := strconv.Atoi(r.URL.Query().Get("channel"))
-		if err != nil {
-			http.Error(w, "Error converting channelID", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
+		channelID := r.URL.Query().Get("channel")
 		messages, err := s.Get.GetMessagesInChannel(channelID)
 		if err != nil {
 			http.Error(w, "Error getting messages", http.StatusBadRequest)
@@ -455,20 +407,8 @@ func (s *server) GetMessagesInChannel() http.HandlerFunc {
 
 func (s *server) AddUserToChannel() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID, err := strconv.Atoi(mux.Vars(r)["user"])
-		if err != nil {
-			http.Error(w, "Unable to convert user id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
-		channelID, err := strconv.Atoi(mux.Vars(r)["channel"])
-		if err != nil {
-			http.Error(w, "Unable to convert channel id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
+		userID := mux.Vars(r)["user"]
+		channelID := mux.Vars(r)["channel"]
 		if err := s.Add.AddUserToChannel(userID, channelID); err != nil {
 			http.Error(w, "Unable to add user to channel", http.StatusInternalServerError)
 		}
@@ -480,20 +420,8 @@ func (s *server) AddUserToChannel() http.HandlerFunc {
 
 func (s *server) RemoveUserFromChannel() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID, err := strconv.Atoi(mux.Vars(r)["user"])
-		if err != nil {
-			http.Error(w, "Unable to convert user id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
-		channelID, err := strconv.Atoi(mux.Vars(r)["channel"])
-		if err != nil {
-			http.Error(w, "Unable to convert channel id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
+		userID := mux.Vars(r)["user"]
+		channelID := mux.Vars(r)["channel"]
 		if err := s.Add.RemoveUserFromChannel(userID, channelID); err != nil {
 			http.Error(w, "Unable to remove user from channel", http.StatusInternalServerError)
 		}
@@ -505,13 +433,7 @@ func (s *server) RemoveUserFromChannel() http.HandlerFunc {
 
 func (s *server) GetUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
-		if err != nil {
-			http.Error(w, "Unable to convert id", http.StatusBadRequest)
-			logrus.Errorf("Unable to convert id %v", mux.Vars(r)["id"])
-			return
-		}
-
+		reqID := mux.Vars(r)["id"]
 		user, err := s.Get.GetUser(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get user", http.StatusInternalServerError)
@@ -525,12 +447,7 @@ func (s *server) GetUser() http.HandlerFunc {
 
 func (s *server) GetChannel() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
-		if err != nil {
-			http.Error(w, "Unable to convert id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
+		reqID := mux.Vars(r)["id"]
 		channel, err := s.Get.GetChannel(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get channel", http.StatusInternalServerError)
@@ -544,12 +461,7 @@ func (s *server) GetChannel() http.HandlerFunc {
 
 func (s *server) GetMessage() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		reqID, err := strconv.Atoi(mux.Vars(r)["id"])
-		if err != nil {
-			http.Error(w, "Unable to convert id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
+		reqID := mux.Vars(r)["id"]
 		message, err := s.Get.GetMessage(reqID)
 		if err != nil {
 			http.Error(w, "Unable to get message", http.StatusInternalServerError)
@@ -603,7 +515,7 @@ func (s *server) GetSidebars() http.HandlerFunc {
 
 		var sidebars []*Channel
 		for _, c := range channels {
-			if c.IsSidebar && c.Parent != 0 {
+			if c.IsSidebar && c.Parent != "" {
 				sidebars = append(sidebars, c)
 			}
 		}
@@ -654,20 +566,8 @@ func (s *server) CreateDirect() http.HandlerFunc {
 			return
 		}
 
-		toID, err := strconv.Atoi(mux.Vars(r)["to_id"])
-		if err != nil {
-			http.Error(w, "Unable to convert id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
-		fromID, err := strconv.Atoi(mux.Vars(r)["from_id"])
-		if err != nil {
-			http.Error(w, "Unable to convert id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
+		toID := mux.Vars(r)["to_id"]
+		fromID := mux.Vars(r)["from_id"]
 		reqChannel.Direct = true
 		channel, err := s.Create.CreateChannel(&reqChannel)
 		if err != nil {
@@ -704,13 +604,7 @@ func (s *server) CreateSidebar() http.HandlerFunc {
 			return
 		}
 
-		reqID, err := strconv.Atoi(mux.Vars(r)["parent_id"])
-		if err != nil {
-			http.Error(w, "Unable to convert id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
+		reqID := mux.Vars(r)["parent_id"]
 		reqChannel.IsSidebar = true
 		reqChannel.Parent = reqID
 
@@ -721,13 +615,7 @@ func (s *server) CreateSidebar() http.HandlerFunc {
 			return
 		}
 
-		reqID, err = strconv.Atoi(mux.Vars(r)["user_id"])
-		if err != nil {
-			http.Error(w, "Unable to convert id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
+		reqID = mux.Vars(r)["user_id"]
 		err = s.Add.AddUserToChannel(reqID, channel.ID)
 		if err != nil {
 			http.Error(w, "Unable to add user to sidebar", http.StatusInternalServerError)
@@ -740,7 +628,7 @@ func (s *server) CreateSidebar() http.HandlerFunc {
 
 func (s *server) CreateUser() http.HandlerFunc {
 	type Token struct {
-		UserID        int
+		UserID        string
 		Email         string
 		UserName      string
 		Authenticated bool
@@ -823,14 +711,8 @@ func (s *server) NewToken() http.HandlerFunc {
 
 func (s *server) ResolveSidebar() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sid, err := strconv.Atoi(mux.Vars(r)["channel_id"])
-		if err != nil {
-			http.Error(w, "Unable to convert request id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		}
-
-		err = s.Add.ResolveChannel(sid)
+		sid := mux.Vars(r)["channel_id"]
+		err := s.Add.ResolveChannel(sid)
 		if err != nil {
 			http.Error(w, "Unable to update channel", http.StatusBadRequest)
 			logrus.Error(err)
@@ -844,8 +726,8 @@ func (s *server) ResolveSidebar() http.HandlerFunc {
 
 func (s *server) DeleteChannel() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var reqID int
-		if err := json.NewDecoder(r.Body).Decode(&reqID); err != nil {
+		var reqID string
+		if err := json.NewDecoder(r.Body).Decode(&reqID); err != nil || reqID == "" {
 			http.Error(w, "Unable to decode request id", http.StatusBadRequest)
 			logrus.Error(err)
 			return
@@ -864,8 +746,8 @@ func (s *server) DeleteChannel() http.HandlerFunc {
 
 func (s *server) DeleteUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var reqID int
-		if err := json.NewDecoder(r.Body).Decode(&reqID); err != nil {
+		var reqID string
+		if err := json.NewDecoder(r.Body).Decode(&reqID); err != nil || reqID == "" {
 			http.Error(w, "Unable to decode request id", http.StatusBadRequest)
 			logrus.Error(err)
 			return
@@ -893,7 +775,7 @@ func (s *server) Login() http.HandlerFunc {
 	}
 
 	type Token struct {
-		UserID        int
+		UserID        string
 		Email         string
 		UserName      string
 		Authenticated bool
@@ -956,7 +838,7 @@ func (s *server) Login() http.HandlerFunc {
 
 func (s *server) RefreshToken() http.HandlerFunc {
 	type Token struct {
-		UserID        int
+		UserID        string
 		Email         string
 		UserName      string
 		Authenticated bool
@@ -1023,7 +905,7 @@ func (s *server) RefreshToken() http.HandlerFunc {
 func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
 
 	type Token struct {
-		UserID        int
+		UserID        string
 		Email         string
 		UserName      string
 		Authenticated bool

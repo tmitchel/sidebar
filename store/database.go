@@ -2,30 +2,19 @@ package store
 
 import (
 	"database/sql"
-	"fmt"
-	"os"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/pkg/errors"
 	"github.com/tmitchel/sidebar"
-	"golang.org/x/crypto/bcrypt"
 
 	_ "github.com/lib/pq" // postgres drivers
-)
-
-const (
-	host     = "localhost"
-	port     = 5432
-	psqluser = "admin"
-	password = "admin"
-	dbname   = "sidebar"
 )
 
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 // Creater ...
 type Creater interface {
-	NewToken(string, int) error
+	NewToken(string, string) error
 	CreateUser(*sidebar.User, string) (*sidebar.User, error)
 	CreateChannel(*sidebar.Channel) (*sidebar.Channel, error)
 	CreateMessage(*sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error)
@@ -33,39 +22,39 @@ type Creater interface {
 
 // Adder ...
 type Adder interface {
-	AddUserToChannel(int, int) error
-	RemoveUserFromChannel(int, int) error
-	ResolveChannel(int) error
+	AddUserToChannel(string, string) error
+	RemoveUserFromChannel(string, string) error
+	ResolveChannel(string) error
 }
 
 // Deleter ...
 type Deleter interface {
-	DeleteUser(int) (*sidebar.User, error)
-	DeleteChannel(int) (*sidebar.Channel, error)
+	DeleteUser(string) (*sidebar.User, error)
+	DeleteChannel(string) (*sidebar.Channel, error)
 }
 
 // Getter ...
 type Getter interface {
-	GetUser(int) (*sidebar.User, error)
-	GetChannel(int) (*sidebar.Channel, error)
-	GetMessage(int) (*sidebar.WebSocketMessage, error)
+	GetUser(string) (*sidebar.User, error)
+	GetChannel(string) (*sidebar.Channel, error)
+	GetMessage(string) (*sidebar.WebSocketMessage, error)
 
 	GetUsers() ([]*sidebar.User, error)
 	GetChannels() ([]*sidebar.Channel, error)
 	GetMessages() ([]*sidebar.WebSocketMessage, error)
 
-	GetUsersInChannel(int) ([]*sidebar.User, error)
-	GetChannelsForUser(int) ([]*sidebar.Channel, error)
+	GetUsersInChannel(string) ([]*sidebar.User, error)
+	GetChannelsForUser(string) ([]*sidebar.Channel, error)
 
-	GetMessagesInChannel(int) ([]*sidebar.WebSocketMessage, error)
-	GetMessagesFromUser(int) ([]*sidebar.WebSocketMessage, error)
-	GetMessagesToUser(int) ([]*sidebar.WebSocketMessage, error)
+	GetMessagesInChannel(string) ([]*sidebar.WebSocketMessage, error)
+	GetMessagesFromUser(string) ([]*sidebar.WebSocketMessage, error)
+	GetMessagesToUser(string) ([]*sidebar.WebSocketMessage, error)
 }
 
 // Updater ...
 type Updater interface {
 	UpdateUserInformation(*sidebar.User) error
-	UpdateUserPassword(int, []byte) error
+	UpdateUserPassword(string, []byte) error
 }
 
 // Authenticater ...
@@ -107,135 +96,12 @@ func New(psqlInfo string) (Database, error) {
 	return &database{db}, nil
 }
 
-// NewWithMigration connects to the postgres database, runs migrations,
-// and returns that connection.
-func NewWithMigration(newDBName string) (Database, error) {
-	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
-		"password=%s dbname=%s sslmode=disable",
-		host, port, psqluser, password, newDBName)
-
-	if os.Getenv("DATABASE_URL") != "" {
-		psqlInfo = os.Getenv("DATABASE_URL")
-	}
-	db, err := sql.Open("postgres", psqlInfo)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error opening database")
-	}
-
-	// make sure we have a good connection
-	err = db.Ping()
-	if err != nil {
-		return nil, errors.Wrap(err, "Error pinging database")
-	}
-
-	if err := migrations(db); err != nil {
-		return nil, err
-	}
-
-	return &database{db}, nil
-}
-
 // Close closes the database.
 func (d *database) Close() {
 	d.DB.Close()
 }
 
-func MigrationsForTesting(d Database) error {
-	users := []*sidebar.User{
-		&sidebar.User{
-			ID:          1,
-			DisplayName: "user one",
-			Email:       "userone@email.com",
-			Password:    []byte("password"),
-		},
-		&sidebar.User{
-			ID:          2,
-			DisplayName: "user twp",
-			Email:       "usertwp@email.com",
-			Password:    []byte("password"),
-		},
-		&sidebar.User{
-			ID:          3,
-			DisplayName: "user three",
-			Email:       "userthree@email.com",
-			Password:    []byte("password"),
-		},
-	}
-	for i, u := range users {
-		u.Password, _ = bcrypt.GenerateFromPassword(u.Password, bcrypt.DefaultCost)
-		uu, err := createUser(d, u)
-		if err != nil {
-			return err
-		}
-		users[i].ID = uu.ID
-	}
-
-	channels := []*sidebar.Channel{
-		&sidebar.Channel{
-			ID:        1,
-			Name:      "channel one",
-			IsSidebar: false,
-		},
-		&sidebar.Channel{
-			ID:        2,
-			Name:      "channel two",
-			IsSidebar: true,
-			Parent:    1,
-		},
-	}
-	for i, c := range channels {
-		cc, err := d.CreateChannel(c)
-		if err != nil {
-			return err
-		}
-		channels[i].ID = cc.ID
-	}
-
-	messages := []*sidebar.WebSocketMessage{
-		&sidebar.WebSocketMessage{
-			ID:       1,
-			Event:    1,
-			Content:  "message one",
-			ToUser:   users[0].ID,
-			FromUser: users[1].ID,
-			Channel:  channels[0].ID,
-		},
-		&sidebar.WebSocketMessage{
-			ID:       2,
-			Event:    1,
-			Content:  "message two",
-			ToUser:   users[1].ID,
-			FromUser: users[0].ID,
-			Channel:  channels[1].ID,
-		},
-		&sidebar.WebSocketMessage{
-			ID:       3,
-			Event:    2,
-			Content:  "",
-			ToUser:   users[0].ID,
-			FromUser: users[0].ID,
-			Channel:  channels[0].ID,
-		},
-	}
-	for i, m := range messages {
-		mm, err := d.CreateMessage(m)
-		if err != nil {
-			return err
-		}
-		messages[i].ID = mm.ID
-	}
-
-	for _, u := range users {
-		err := d.AddUserToChannel(u.ID, channels[0].ID)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (d *database) NewToken(token string, userID int) error {
+func (d *database) NewToken(token string, userID string) error {
 	_, err := psql.Insert("tokens").
 		Columns("token", "creater_id").
 		Values(token, userID).
@@ -245,36 +111,31 @@ func (d *database) NewToken(token string, userID int) error {
 }
 
 func CreateUserNoToken(d Database, u *sidebar.User) (*sidebar.User, error) {
-	var id int
 	duser := userFromModel(u)
-	err := psql.Insert("users").
-		Columns("display_name", "email", "password", "profile_image").
-		Values(duser.DisplayName, duser.Email, duser.Password, "https://randomuser.me/api/portraits/women/81.jpg").
+	_, err := psql.Insert("users").
+		Columns("id", "display_name", "email", "password", "profile_image").
+		Values(duser.ID, duser.DisplayName, duser.Email, duser.Password, "https://randomuser.me/api/portraits/women/81.jpg").
 		Suffix("RETURNING id").
-		RunWith(d).QueryRow().Scan(&id)
+		RunWith(d).Exec()
 
 	if err != nil {
 		return nil, err
 	}
 
-	duser.ID = id
 	return duser.ToModel(), nil
 }
 
 func createUser(d Database, u *sidebar.User) (*sidebar.User, error) {
-	var id int
 	duser := userFromModel(u)
-	err := psql.Insert("users").
-		Columns("display_name", "email", "password", "profile_image").
-		Values(duser.DisplayName, duser.Email, duser.Password, "https://randomuser.me/api/portraits/women/81.jpg").
-		Suffix("RETURNING id").
-		RunWith(d).QueryRow().Scan(&id)
+	_, err := psql.Insert("users").
+		Columns("id", "display_name", "email", "password", "profile_image").
+		Values(duser.ID, duser.DisplayName, duser.Email, duser.Password, "https://randomuser.me/api/portraits/women/81.jpg").
+		RunWith(d).Exec()
 
 	if err != nil {
 		return nil, err
 	}
 
-	duser.ID = id
 	return duser.ToModel(), nil
 }
 
@@ -291,20 +152,18 @@ func (d *database) CreateUser(u *sidebar.User, token string) (*sidebar.User, err
 		return nil, errors.New("Token is no longer valid")
 	}
 
-	var id int
 	duser := userFromModel(u)
-	err = psql.Insert("users").
-		Columns("display_name", "email", "password", "profile_image").
-		Values(duser.DisplayName, duser.Email, duser.Password, duser.ProfileImg).
-		Suffix("RETURNING id").
-		RunWith(d).QueryRow().Scan(&id)
+	_, err = psql.Insert("users").
+		Columns("id", "display_name", "email", "password", "profile_image").
+		Values(duser.ID, duser.DisplayName, duser.Email, duser.Password, duser.ProfileImg).
+		RunWith(d).Exec()
 
 	if err != nil {
 		return nil, err
 	}
 
 	_, err = psql.Update("tokens").
-		Set("valid", false).Set("new_user_id", id).
+		Set("valid", false).Set("new_user_id", duser.ID).
 		Where(sq.Eq{"token": token}).
 		RunWith(d).Exec()
 
@@ -312,11 +171,10 @@ func (d *database) CreateUser(u *sidebar.User, token string) (*sidebar.User, err
 		return nil, err
 	}
 
-	duser.ID = id
 	return duser.ToModel(), nil
 }
 
-func (d *database) ResolveChannel(channelID int) error {
+func (d *database) ResolveChannel(channelID string) error {
 	c, _ := d.GetChannel(channelID)
 	_, err := psql.Update("channels").
 		Set("resolved", !c.Resolved).
@@ -325,21 +183,21 @@ func (d *database) ResolveChannel(channelID int) error {
 	return err
 }
 
-func (d *database) AddUserToChannel(userID, channelID int) error {
+func (d *database) AddUserToChannel(userID, channelID string) error {
 	_, err := psql.Insert("users_channels").
 		Columns("user_id", "channel_id").Values(userID, channelID).
 		RunWith(d).Exec()
 	return err
 }
 
-func (d *database) RemoveUserFromChannel(userID, channelID int) error {
+func (d *database) RemoveUserFromChannel(userID, channelID string) error {
 	_, err := psql.Delete("users_channels").
 		Where(sq.Eq{"user_id": userID, "channel_id": channelID}).
 		RunWith(d).Exec()
 	return err
 }
 
-func (d *database) GetUser(id int) (*sidebar.User, error) {
+func (d *database) GetUser(id string) (*sidebar.User, error) {
 	var u user
 	row := psql.Select("id", "display_name", "email", "password", "profile_image").
 		From("users").Where(sq.Eq{"id": id}).RunWith(d).QueryRow()
@@ -351,7 +209,7 @@ func (d *database) GetUser(id int) (*sidebar.User, error) {
 	return u.ToModel(), nil
 }
 
-func (d *database) GetUsersInChannel(id int) ([]*sidebar.User, error) {
+func (d *database) GetUsersInChannel(id string) ([]*sidebar.User, error) {
 	var users []*sidebar.User
 	rows, err := psql.Select("id", "display_name", "email", "password", "profile_image").
 		From("users").Join("users_channels uc ON ( uc.user_id = id )").
@@ -373,8 +231,8 @@ func (d *database) GetUsersInChannel(id int) ([]*sidebar.User, error) {
 	return users, nil
 }
 
-func (d *database) GetChannelsForUser(id int) ([]*sidebar.Channel, error) {
-	var parent sql.NullInt64
+func (d *database) GetChannelsForUser(id string) ([]*sidebar.Channel, error) {
+	var parent sql.NullString
 	var channels []*sidebar.Channel
 	rows, err := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
 		From("channels as ch").
@@ -395,7 +253,7 @@ func (d *database) GetChannelsForUser(id int) ([]*sidebar.Channel, error) {
 		}
 
 		if parent.Valid {
-			c.Parent = int(parent.Int64)
+			c.Parent = parent.String
 		}
 
 		channels = append(channels, c.ToModel())
@@ -417,12 +275,10 @@ func (d *database) UserForAuth(email string) (*sidebar.User, error) {
 }
 
 func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
-	var id int
 	dchannel := channelFromModel(c)
-	err := psql.Insert("channels").
-		Columns("display_name", "is_sidebar", "is_direct").Values(dchannel.Name, dchannel.IsSidebar, dchannel.Direct).
-		Suffix("RETURNING id").
-		RunWith(d).QueryRow().Scan(&id)
+	_, err := psql.Insert("channels").
+		Columns("id", "display_name", "is_sidebar", "is_direct").Values(dchannel.ID, dchannel.Name, dchannel.IsSidebar, dchannel.Direct).
+		RunWith(d).Exec()
 
 	if err != nil {
 		return nil, err
@@ -430,19 +286,18 @@ func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 
 	if dchannel.IsSidebar {
 		_, err := psql.Insert("sidebars").
-			Columns("id", "parent_id").Values(id, c.Parent).
+			Columns("id", "parent_id").Values(dchannel.ID, c.Parent).
 			RunWith(d).Exec()
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	dchannel.ID = id
 	return dchannel.ToModel(), nil
 }
 
-func (d *database) GetChannel(id int) (*sidebar.Channel, error) {
-	var parent sql.NullInt64
+func (d *database) GetChannel(id string) (*sidebar.Channel, error) {
+	var parent sql.NullString
 	var c channel
 	row := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
 		From("channels as ch").
@@ -453,39 +308,36 @@ func (d *database) GetChannel(id int) (*sidebar.Channel, error) {
 	}
 
 	if parent.Valid {
-		c.Parent = int(parent.Int64)
+		c.Parent = parent.String
 	}
 
 	return c.ToModel(), nil
 }
 
 func (d *database) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error) {
-	var id int
 	dmessage := messageFromModel(m)
-	err := psql.Insert("messages").
-		Columns("content", "event").Values(dmessage.Content, dmessage.Event).
-		Suffix("RETURNING id").
-		RunWith(d).QueryRow().Scan(&id)
+	_, err := psql.Insert("messages").
+		Columns("id", "content", "event").Values(dmessage.ID, dmessage.Content, dmessage.Event).
+		RunWith(d).Exec()
 
 	if err != nil {
 		return nil, err
 	}
 
 	_, err = psql.Insert("users_messages").
-		Columns("user_to_id", "user_from_id", "message_id").Values(m.ToUser, m.FromUser, id).
+		Columns("user_to_id", "user_from_id", "message_id").Values(m.ToUser, m.FromUser, dmessage.ID).
 		RunWith(d).Exec()
 	if err != nil {
 		return nil, err
 	}
 
 	_, err = psql.Insert("channels_messages").
-		Columns("channel_id", "message_id").Values(m.Channel, id).
+		Columns("channel_id", "message_id").Values(m.Channel, dmessage.ID).
 		RunWith(d).Exec()
 	if err != nil {
 		return nil, err
 	}
 
-	dmessage.ID = id
 	mod := dmessage.ToModel()
 	mod.ToUser = m.ToUser
 	mod.FromUser = m.FromUser
@@ -493,9 +345,9 @@ func (d *database) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocke
 	return mod, nil
 }
 
-func (d *database) GetMessage(id int) (*sidebar.WebSocketMessage, error) {
+func (d *database) GetMessage(id string) (*sidebar.WebSocketMessage, error) {
 	var m webSocketMessage
-	var toUser, fromUser, channel int
+	var toUser, fromUser, channel string
 	row := psql.Select("ms.id", "ms.event", "ms.content", "cm.channel_id", "um.user_from_id", "um.user_to_id").From("messages as ms").
 		Join("channels_messages cm ON (cm.message_id = ms.id)").
 		Join("users_messages um ON ( um.message_id = ms.id )").
@@ -512,7 +364,7 @@ func (d *database) GetMessage(id int) (*sidebar.WebSocketMessage, error) {
 	return mod, nil
 }
 
-func (d *database) GetMessagesInChannel(id int) ([]*sidebar.WebSocketMessage, error) {
+func (d *database) GetMessagesInChannel(id string) ([]*sidebar.WebSocketMessage, error) {
 	var messages []*sidebar.WebSocketMessage
 	rows, err := psql.Select("id", "content", "event", "cm.channel_id", "um.user_from_id", "um.user_to_id").From("messages").
 		Join("channels_messages cm ON ( cm.message_id = id )").
@@ -525,7 +377,7 @@ func (d *database) GetMessagesInChannel(id int) ([]*sidebar.WebSocketMessage, er
 
 	for rows.Next() {
 		var m webSocketMessage
-		var channel, toUser, fromUser int
+		var channel, toUser, fromUser string
 		err := rows.Scan(&m.ID, &m.Content, &m.Event, &channel, &fromUser, &toUser)
 		if err != nil {
 			return nil, errors.New("Error scanning for message")
@@ -542,7 +394,7 @@ func (d *database) GetMessagesInChannel(id int) ([]*sidebar.WebSocketMessage, er
 	return messages, nil
 }
 
-func (d *database) GetMessagesFromUser(id int) ([]*sidebar.WebSocketMessage, error) {
+func (d *database) GetMessagesFromUser(id string) ([]*sidebar.WebSocketMessage, error) {
 	var messages []*sidebar.WebSocketMessage
 	rows, err := psql.Select("id", "content").From("messages").
 		Join("users_messages um ON ( um.message_id = id )").
@@ -565,7 +417,7 @@ func (d *database) GetMessagesFromUser(id int) ([]*sidebar.WebSocketMessage, err
 	return messages, nil
 }
 
-func (d *database) GetMessagesToUser(id int) ([]*sidebar.WebSocketMessage, error) {
+func (d *database) GetMessagesToUser(id string) ([]*sidebar.WebSocketMessage, error) {
 	var messages []*sidebar.WebSocketMessage
 	rows, err := psql.Select("id", "content").From("messages").
 		Join("users_messages um ON ( um.message_id = id )").
@@ -610,7 +462,7 @@ func (d *database) GetUsers() ([]*sidebar.User, error) {
 }
 
 func (d *database) GetChannels() ([]*sidebar.Channel, error) {
-	var parent sql.NullInt64
+	var parent sql.NullString
 	var channels []*sidebar.Channel
 	rows, err := psql.Select("ch.id", "ch.display_name", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
 		From("channels as ch").
@@ -628,7 +480,7 @@ func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 		}
 
 		if parent.Valid {
-			c.Parent = int(parent.Int64)
+			c.Parent = parent.String
 		}
 
 		channels = append(channels, c.ToModel())
@@ -650,7 +502,7 @@ func (d *database) GetMessages() ([]*sidebar.WebSocketMessage, error) {
 
 	for rows.Next() {
 		var w webSocketMessage
-		var toID, fromID, channelID int
+		var toID, fromID, channelID string
 		err := rows.Scan(&w.ID, &w.Event, &w.Content, &toID, &fromID, &channelID)
 		if err != nil {
 			return nil, errors.New("Error scanning messages")
@@ -677,7 +529,7 @@ func (d *database) UpdateUserInformation(u *sidebar.User) error {
 	return err
 }
 
-func (d *database) UpdateUserPassword(id int, password []byte) error {
+func (d *database) UpdateUserPassword(id string, password []byte) error {
 	_, err := psql.Update("users").
 		Set("password", password).
 		Where(sq.Eq{"id": id}).
@@ -686,9 +538,9 @@ func (d *database) UpdateUserPassword(id int, password []byte) error {
 	return err
 }
 
-func (d *database) DeleteUser(id int) (*sidebar.User, error) {
+func (d *database) DeleteUser(id string) (*sidebar.User, error) {
 	user, err := d.GetUser(id)
-	if err != nil || user.ID == 0 {
+	if err != nil || user.ID == "" {
 		return nil, errors.Errorf("User with id: %v doesn't exist", id)
 	}
 
@@ -700,9 +552,9 @@ func (d *database) DeleteUser(id int) (*sidebar.User, error) {
 	return user, nil
 }
 
-func (d *database) DeleteChannel(id int) (*sidebar.Channel, error) {
+func (d *database) DeleteChannel(id string) (*sidebar.Channel, error) {
 	channel, err := d.GetChannel(id)
-	if err != nil || channel.ID == 0 {
+	if err != nil || channel.ID == "" {
 		return nil, errors.Errorf("User with id: %v doesn't exist", id)
 	}
 
@@ -712,100 +564,4 @@ func (d *database) DeleteChannel(id int) (*sidebar.Channel, error) {
 	}
 
 	return channel, nil
-}
-
-func migrations(db *sql.DB) error {
-	userQuery := `
-	DROP TABLE IF EXISTS users CASCADE;
-	CREATE TABLE users (
-		id SERIAL UNIQUE,
-		display_name TEXT UNIQUE NOT NULL,
-		email TEXT UNIQUE NOT NULL,
-		password TEXT NOT NULL,
-		profile_image TEXT NOT NULL,
-		PRIMARY KEY(id)
-	);`
-
-	messageQuery := `
-	DROP TABLE IF EXISTS messages CASCADE;
-	CREATE TABLE messages (
-		id SERIAL UNIQUE,
-		content TEXT NOT NULL,
-		event INT NOT NULL,
-		PRIMARY KEY(id)
-	);`
-
-	channelQuery := `
-	DROP TABLE IF EXISTS channels CASCADE;
-	CREATE TABLE channels (
-		id SERIAL UNIQUE,
-		display_name TEXT UNIQUE NOT NULL,
-		is_sidebar BOOLEAN DEFAULT FALSE,
-		is_direct BOOLEAN DEFAULT FALSE,
-		resolved BOOLEAN DEFAULT FALSE,
-		PRIMARY KEY(id)
-	);`
-
-	sidebarQuery := `
-	DROP TABLE IF EXISTS sidebars;
-	CREATE TABLE sidebars (
-		id INT NOT NULL,
-		parent_id INT,
-		FOREIGN KEY(id) REFERENCES channels(id) ON DELETE CASCADE,
-		FOREIGN KEY(parent_id) REFERENCES channels(id) ON DELETE CASCADE
-	);`
-
-	userChannelQuery := `
-	DROP TABLE IF EXISTS users_channels CASCADE;
-	CREATE TABLE users_channels (
-		user_id INT REFERENCES users (id) ON UPDATE CASCADE,
-		channel_id INT REFERENCES channels (id) ON UPDATE CASCADE,
-		CONSTRAINT users_channels_pkey PRIMARY KEY (user_id, channel_id)
-	);`
-
-	tokenStoreQuery := `
-	DROP TABLE IF EXISTS tokens CASCADE;
-	CREATE TABLE tokens (
-		token TEXT NOT NULL UNIQUE,
-		creater_id INT,
-		new_user_id INT,
-		valid BOOLEAN DEFAULT TRUE,
-		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-		PRIMARY KEY(token),
-		FOREIGN KEY(creater_id) REFERENCES users(id) ON DELETE CASCADE,
-		FOREIGN KEY(new_user_id) REFERENCES users(id) ON DELETE CASCADE
-	);`
-
-	userMessageQuery := `
-	DROP TABLE IF EXISTS users_messages CASCADE;
-	CREATE TABLE users_messages (
-		user_to_id INT,
-		user_from_id INT NOT NULL,
-		message_id INT NOT NULL,
-		FOREIGN KEY(user_from_id) REFERENCES users(id) ON DELETE CASCADE,
-		FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
-	);`
-
-	channelMessageQuery := `
-	DROP TABLE IF EXISTS channels_messages CASCADE;
-	CREATE TABLE channels_messages (
-		channel_id INT NOT NULL,
-		message_id INT NOT NULL,
-		FOREIGN KEY(channel_id) REFERENCES channels(id) ON DELETE CASCADE,
-		FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
-	);`
-
-	queries := []string{
-		userQuery, messageQuery, channelQuery, sidebarQuery, userChannelQuery,
-		tokenStoreQuery, userMessageQuery, channelMessageQuery,
-	}
-
-	for _, query := range queries {
-		_, err := db.Exec(query)
-		if err != nil {
-			return errors.Wrapf(err, "Query: %v", query)
-		}
-	}
-
-	return nil
 }
