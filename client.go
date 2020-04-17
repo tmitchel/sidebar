@@ -59,8 +59,15 @@ func (c *client) readPump() {
 			}
 			return
 		}
+
+		// logrus.Info("%+v\n")
+		// if msg.Event == 69 {
+		// 	logrus.Info("Unsubscribing")
+		// 	c.hub.Unregister(c)
+		// 	return
+		// }
+
 		storedMsg, err := c.hub.db.CreateMessage(&msg)
-		logrus.Infof("%+v\n%+v\n", msg, storedMsg)
 		if err != nil {
 			logrus.Errorf("error storing message %v", err)
 		}

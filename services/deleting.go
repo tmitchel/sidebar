@@ -15,10 +15,10 @@ func NewDeleter(db store.Deleter) (sidebar.Deleter, error) {
 	}, nil
 }
 
-func (a *deleter) DeleteChannel(id int) (*sidebar.Channel, error) {
+func (a *deleter) DeleteChannel(id string) (*sidebar.Channel, error) {
 	return a.DB.DeleteChannel(id)
 }
 
-func (a *deleter) DeleteUser(id int) (*sidebar.User, error) {
+func (a *deleter) DeleteUser(id string) (*sidebar.User, error) {
 	return a.DB.DeleteUser(id)
 }

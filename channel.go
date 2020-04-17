@@ -2,12 +2,12 @@ package sidebar
 
 // Channel contains a chat centered around a specific topic.
 type Channel struct {
-	ID        int
-	Name      string
-	IsSidebar bool
-	Parent    int
-	Direct    bool
-	Resolved  bool
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	IsSidebar bool   `json:"is_sidebar"`
+	Parent    string `json:"parent"`
+	Direct    bool   `json:"direct"`
+	Resolved  bool   `json:"resolved"`
 }
 
 type CompleteChannel struct {

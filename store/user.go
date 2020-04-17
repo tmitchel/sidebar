@@ -5,11 +5,11 @@ import (
 )
 
 type user struct {
-	ID          int    `db:"id"`
-	DisplayName string `db:"display_name"`
-	Email       string `db:"email"`
-	Password    []byte `db:"password"`
-	ProfileImg  string `db:"profile_image"`
+	ID          string
+	DisplayName string
+	Email       string
+	Password    []byte
+	ProfileImg  string
 }
 
 // userFromModel converts the normal sidebar.User model
@@ -36,8 +36,8 @@ func (u *user) ToModel() *sidebar.User {
 }
 
 type userForAuth struct {
-	ID       int    `db:"id"`
-	Password []byte `db:"password"`
+	ID       string
+	Password []byte
 }
 
 func (u *userForAuth) ToModel() *sidebar.User {

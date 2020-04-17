@@ -10,10 +10,10 @@ const (
 // WebSocketMessage represents a message sent over
 // the Websocket connection.
 type WebSocketMessage struct {
-	ID       int    `json:"id"`
+	ID       string `json:"id"`
 	Event    int64  `json:"event"`
 	Content  string `json:"content"`
-	ToUser   int    `json:"to_user"`
-	FromUser int    `json:"from_user"`
-	Channel  int    `json:"channel"`
+	ToUser   string `json:"to_user"`
+	FromUser string `json:"from_user"`
+	Channel  string `json:"channel"`
 }

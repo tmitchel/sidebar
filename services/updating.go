@@ -22,10 +22,10 @@ func (u *updater) UpdateUserInfo(user *sidebar.User) error {
 	return u.DB.UpdateUserInformation(user)
 }
 
-func (u *updater) UpdateUserPassword(id int, newPassword, oldPassword []byte) error {
+func (u *updater) UpdateUserPassword(id string, newPassword, oldPassword []byte) error {
 	authUser, err := u.DB.GetUser(id)
 	if err != nil {
-		logrus.Error("Unable to find user with id: %s", id)
+		logrus.Errorf("Unable to find user with id: %s", id)
 		return err
 	}
 

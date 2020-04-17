@@ -10,41 +10,41 @@ type Authenticater interface {
 // Creater provides methods to create new objects
 // that will be persisted to disk.
 type Creater interface {
-	NewToken(int) (string, error)
+	NewToken(string) (string, error)
 	CreateUser(*User, string) (*User, error)
 	CreateChannel(*Channel) (*Channel, error)
 	CreateMessage(*WebSocketMessage) (*WebSocketMessage, error)
 }
 
 type Deleter interface {
-	DeleteUser(int) (*User, error)
-	DeleteChannel(int) (*Channel, error)
+	DeleteUser(string) (*User, error)
+	DeleteChannel(string) (*Channel, error)
 }
 
 type Adder interface {
-	ResolveChannel(int) error
-	AddUserToChannel(int, int) error
-	RemoveUserFromChannel(int, int) error
+	ResolveChannel(string) error
+	AddUserToChannel(string, string) error
+	RemoveUserFromChannel(string, string) error
 }
 
 type Getter interface {
-	GetUser(int) (*User, error)
-	GetChannel(int) (*Channel, error)
-	GetMessage(int) (*WebSocketMessage, error)
+	GetUser(string) (*User, error)
+	GetChannel(string) (*Channel, error)
+	GetMessage(string) (*WebSocketMessage, error)
 
 	GetUsers() ([]*User, error)
 	GetChannels() ([]*Channel, error)
 	GetMessages() ([]*WebSocketMessage, error)
 
-	GetUsersInChannel(int) ([]*User, error)
-	GetChannelsForUser(int) ([]*Channel, error)
+	GetUsersInChannel(string) ([]*User, error)
+	GetChannelsForUser(string) ([]*Channel, error)
 
-	GetMessagesInChannel(int) ([]*WebSocketMessage, error)
-	GetMessagesFromUser(int) ([]*WebSocketMessage, error)
-	GetMessagesToUser(int) ([]*WebSocketMessage, error)
+	GetMessagesInChannel(string) ([]*WebSocketMessage, error)
+	GetMessagesFromUser(string) ([]*WebSocketMessage, error)
+	GetMessagesToUser(string) ([]*WebSocketMessage, error)
 }
 
 type Updater interface {
 	UpdateUserInfo(*User) error
-	UpdateUserPassword(int, []byte, []byte) error
+	UpdateUserPassword(string, []byte, []byte) error
 }

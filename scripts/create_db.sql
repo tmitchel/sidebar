@@ -1,6 +1,6 @@
 DROP TABLE IF EXISTS users CASCADE;
 CREATE TABLE users (
-    id SERIAL UNIQUE,
+    id VARCHAR(36) UNIQUE,
     display_name VARCHAR(255) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE users (
 
 DROP TABLE IF EXISTS messages CASCADE;
 CREATE TABLE messages (
-    id SERIAL UNIQUE,
+    id VARCHAR(36) UNIQUE,
     content TEXT NOT NULL,
     event INT NOT NULL,
     PRIMARY KEY(id)
@@ -18,7 +18,7 @@ CREATE TABLE messages (
 
 DROP TABLE IF EXISTS channels CASCADE;
 CREATE TABLE channels (
-    id SERIAL UNIQUE,
+    id VARCHAR(36) UNIQUE,
     display_name VARCHAR(255) UNIQUE NOT NULL,
     is_sidebar BOOLEAN DEFAULT FALSE,
     is_direct BOOLEAN DEFAULT FALSE,
@@ -28,24 +28,24 @@ CREATE TABLE channels (
 
 DROP TABLE IF EXISTS sidebars;
 CREATE TABLE sidebars (
-    id INT NOT NULL,
-    parent_id INT,
+    id VARCHAR(36) NOT NULL,
+    parent_id VARCHAR(36),
     FOREIGN KEY(id) REFERENCES channels(id) ON DELETE CASCADE,
     FOREIGN KEY(parent_id) REFERENCES channels(id) ON DELETE CASCADE
 );
 
 DROP TABLE IF EXISTS users_channels CASCADE;
 CREATE TABLE users_channels (
-    user_id INT REFERENCES users (id) ON UPDATE CASCADE,
-    channel_id INT REFERENCES channels (id) ON UPDATE CASCADE,
+    user_id VARCHAR(36) REFERENCES users (id) ON UPDATE CASCADE,
+    channel_id VARCHAR(36) REFERENCES channels (id) ON UPDATE CASCADE,
     CONSTRAINT users_channels_pkey PRIMARY KEY (user_id, channel_id)
 );
 
 DROP TABLE IF EXISTS tokens CASCADE;
 CREATE TABLE tokens (
     token VARCHAR(255) NOT NULL UNIQUE,
-    creater_id INT NOT NULL,
-    new_user_id INT,
+    creater_id VARCHAR(36) NOT NULL,
+    new_user_id VARCHAR(36),
     valid BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY(token),
@@ -55,17 +55,17 @@ CREATE TABLE tokens (
 
 DROP TABLE IF EXISTS users_messages CASCADE;
 CREATE TABLE users_messages (
-    user_to_id INT,
-    user_from_id INT NOT NULL,
-    message_id INT NOT NULL,
+    user_to_id VARCHAR(36),
+    user_from_id VARCHAR(36) NOT NULL,
+    message_id VARCHAR(36) NOT NULL,
     FOREIGN KEY(user_from_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
 );
 
 DROP TABLE IF EXISTS channels_messages CASCADE;
 CREATE TABLE channels_messages (
-    channel_id INT NOT NULL,
-    message_id INT NOT NULL,
+    channel_id VARCHAR(36) NOT NULL,
+    message_id VARCHAR(36) NOT NULL,
     FOREIGN KEY(channel_id) REFERENCES channels(id) ON DELETE CASCADE,
     FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
 );

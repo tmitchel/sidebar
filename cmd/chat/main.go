@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 	"github.com/tmitchel/sidebar"
@@ -73,6 +74,7 @@ func main() {
 		}
 		logrus.Info("Creating default user")
 		store.CreateUserNoToken(db, &sidebar.User{
+			ID:          uuid.New().String(),
 			DisplayName: os.Getenv("DEFAULT_DISPLAYNAME"),
 			Email:       os.Getenv("DEFAULT_EMAIL"),
 			Password:    hashed,

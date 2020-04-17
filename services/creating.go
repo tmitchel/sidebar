@@ -21,7 +21,7 @@ func NewCreater(db store.Creater) (sidebar.Creater, error) {
 	}, nil
 }
 
-func (c *creater) NewToken(userID int) (string, error) {
+func (c *creater) NewToken(userID string) (string, error) {
 	token := uuid.New().String()
 	err := c.DB.NewToken(token, userID)
 	if err != nil {
@@ -31,6 +31,8 @@ func (c *creater) NewToken(userID int) (string, error) {
 }
 
 func (c *creater) CreateUser(u *sidebar.User, token string) (*sidebar.User, error) {
+	u.ID = uuid.New().String()
+
 	hashed, err := bcrypt.GenerateFromPassword(u.Password, bcrypt.DefaultCost)
 	if err != nil {
 		return nil, errors.New("Error hashing password")
@@ -44,9 +46,11 @@ func (c *creater) CreateUser(u *sidebar.User, token string) (*sidebar.User, erro
 }
 
 func (c *creater) CreateChannel(ch *sidebar.Channel) (*sidebar.Channel, error) {
+	ch.ID = uuid.New().String()
 	return c.DB.CreateChannel(ch)
 }
 
 func (c *creater) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error) {
+	m.ID = uuid.New().String()
 	return c.DB.CreateMessage(m)
 }
