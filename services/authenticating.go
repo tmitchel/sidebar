@@ -24,7 +24,7 @@ func NewAuthenticater(db store.Database) (sidebar.Authenticater, error) {
 func (a *auth) Validate(email, password string) (*sidebar.User, error) {
 	authUser, err := a.DB.UserForAuth(email)
 	if err != nil {
-		logrus.Error("Unable to find user with email: %s", email)
+		logrus.Errorf("Unable to find user with email: %s", email)
 		return nil, err
 	}
 

@@ -847,7 +847,7 @@ func (s *server) RefreshToken() http.HandlerFunc {
 		c, err := r.Cookie("chat-cook")
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			logrus.Errorf("Error with cookie", err)
+			logrus.Error("Error with cookie", err)
 			return
 		}
 
@@ -915,7 +915,7 @@ func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
 		c, err := r.Cookie("chat-cook")
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			logrus.Errorf("Error with cookie", err)
+			logrus.Error("Error with cookie", err)
 			return
 		}
 
