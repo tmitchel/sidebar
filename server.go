@@ -208,7 +208,6 @@ func (s *server) UpdateUserInfo() http.HandlerFunc {
 			return
 		}
 
-		fmt.Printf("%+v\n", reqUser)
 		err := s.Up.UpdateUserInfo(&reqUser)
 		if err != nil {
 			http.Error(w, "Error updating user info", http.StatusBadRequest)

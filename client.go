@@ -1,7 +1,6 @@
 package sidebar
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -51,7 +50,6 @@ func (c *client) readPump() {
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
-		fmt.Printf("%+v\n", c.conn)
 		var msg WebSocketMessage
 		if err := c.conn.ReadJSON(&msg); err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived, websocket.CloseGoingAway) {
@@ -70,7 +68,6 @@ func (c *client) readPump() {
 		// }
 
 		storedMsg, err := c.hub.db.CreateMessage(&msg)
-		logrus.Infof("%+v\n%+v\n", msg, storedMsg)
 		if err != nil {
 			logrus.Errorf("error storing message %v", err)
 		}
