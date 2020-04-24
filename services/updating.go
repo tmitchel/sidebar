@@ -42,3 +42,7 @@ func (u *updater) UpdateUserPassword(id string, newPassword, oldPassword []byte)
 
 	return u.DB.UpdateUserPassword(id, hashed)
 }
+
+func (u *updater) UpdateChannelInfo(channel *sidebar.Channel) error {
+	return u.DB.UpdateChannelInformation(channel)
+}

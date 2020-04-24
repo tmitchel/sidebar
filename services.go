@@ -46,5 +46,6 @@ type Getter interface {
 
 type Updater interface {
 	UpdateUserInfo(*User) error
+	UpdateChannelInfo(*Channel) error
 	UpdateUserPassword(string, []byte, []byte) error
 }

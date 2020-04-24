@@ -47,6 +47,9 @@ func (c *creater) CreateUser(u *sidebar.User, token string) (*sidebar.User, erro
 
 func (c *creater) CreateChannel(ch *sidebar.Channel) (*sidebar.Channel, error) {
 	ch.ID = uuid.New().String()
+	if ch.Image == "" {
+		ch.Image = "https://randomuser.me/api/portraits/women/81.jpg"
+	}
 	return c.DB.CreateChannel(ch)
 }
 

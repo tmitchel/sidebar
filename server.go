@@ -107,6 +107,7 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	apiRouter.Handle("/resolve/{channel_id}", s.requireAuth(s.ResolveSidebar())).Methods("POST")
 	apiRouter.Handle("/update-userinfo", s.requireAuth(s.UpdateUserInfo())).Methods("POST")
 	apiRouter.Handle("/update-userpass", s.requireAuth(s.UpdateUserPassword())).Methods("POST")
+	apiRouter.Handle("/update-channelinfo", s.requireAuth(s.UpdateChannelInfo())).Methods("POST")
 
 	apiRouter.Handle("/add/{user}/{channel}", s.requireAuth(s.AddUserToChannel())).Methods("POST")
 	apiRouter.Handle("/leave/{user}/{channel}", s.requireAuth(s.RemoveUserFromChannel())).Methods("DELETE")
@@ -223,6 +224,61 @@ func (s *server) UpdateUserInfo() http.HandlerFunc {
 		}
 
 		json.NewEncoder(w).Encode(newUser)
+	}
+}
+
+func (s *server) UpdateChannelInfo() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var reqChannel Channel
+		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
+			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
+			logrus.Error(err)
+			return
+		}
+
+		currentUser, ok := r.Context().Value(ctxKey("user_info")).(User)
+		if !ok {
+			http.Error(w, "Unable to decode current user", http.StatusBadRequest)
+			logrus.Error("Unable to decode current user")
+			return
+		}
+
+		members, err := s.Get.GetUsersInChannel(reqChannel.ID)
+		if err != nil {
+			http.Error(w, "Unable get members of channel", http.StatusBadRequest)
+			logrus.Error("Unable get members of channel")
+			return
+		}
+
+		var found bool
+		for _, m := range members {
+			if m.ID == currentUser.ID {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			http.Error(w, "Cannot update channel that you aren't a part of", http.StatusBadRequest)
+			logrus.Error("Cannot update channel that you aren't a part of. %v", currentUser.ID)
+			return
+		}
+
+		err = s.Up.UpdateChannelInfo(&reqChannel)
+		if err != nil {
+			http.Error(w, "Error updating channel info", http.StatusBadRequest)
+			logrus.Errorf("Error updating channel info %v", err)
+			return
+		}
+
+		newChannel, err := s.Get.GetChannel(reqChannel.ID)
+		if err != nil {
+			http.Error(w, "Error getting updated channel", http.StatusBadRequest)
+			logrus.Errorf("Error getting updated channel %v", err)
+			return
+		}
+
+		json.NewEncoder(w).Encode(newChannel)
 	}
 }
 

@@ -54,6 +54,7 @@ type Getter interface {
 // Updater ...
 type Updater interface {
 	UpdateUserInformation(*sidebar.User) error
+	UpdateChannelInformation(*sidebar.Channel) error
 	UpdateUserPassword(string, []byte) error
 }
 
@@ -234,7 +235,7 @@ func (d *database) GetUsersInChannel(id string) ([]*sidebar.User, error) {
 func (d *database) GetChannelsForUser(id string) ([]*sidebar.Channel, error) {
 	var parent sql.NullString
 	var channels []*sidebar.Channel
-	rows, err := psql.Select("ch.id", "ch.display_name", "ch.details", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
+	rows, err := psql.Select("ch.id", "ch.display_name", "ch.details", "ch.display_image", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
 		From("channels as ch").
 		Join("users_channels uc ON ( uc.channel_id = ch.id )").
 		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").
@@ -247,7 +248,7 @@ func (d *database) GetChannelsForUser(id string) ([]*sidebar.Channel, error) {
 
 	for rows.Next() {
 		var c channel
-		err := rows.Scan(&c.ID, &c.Name, &c.Details, &c.IsSidebar, &parent, &c.Direct, &c.Resolved)
+		err := rows.Scan(&c.ID, &c.Name, &c.Details, &c.Image, &c.IsSidebar, &parent, &c.Direct, &c.Resolved)
 		if err != nil {
 			continue
 		}
@@ -277,8 +278,8 @@ func (d *database) UserForAuth(email string) (*sidebar.User, error) {
 func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 	dchannel := channelFromModel(c)
 	_, err := psql.Insert("channels").
-		Columns("id", "display_name", "details", "is_sidebar", "is_direct").
-		Values(dchannel.ID, dchannel.Name, dchannel.Details, dchannel.IsSidebar, dchannel.Direct).
+		Columns("id", "display_name", "details", "display_image", "is_sidebar", "is_direct").
+		Values(dchannel.ID, dchannel.Name, dchannel.Details, dchannel.Image, dchannel.IsSidebar, dchannel.Direct).
 		RunWith(d).Exec()
 
 	if err != nil {
@@ -300,10 +301,10 @@ func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 func (d *database) GetChannel(id string) (*sidebar.Channel, error) {
 	var parent sql.NullString
 	var c channel
-	row := psql.Select("ch.id", "ch.display_name", "ch.details", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
+	row := psql.Select("ch.id", "ch.display_name", "ch.details", "ch.display_image", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
 		From("channels as ch").
 		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").Where(sq.Eq{"ch.id": id}).RunWith(d).QueryRow()
-	err := row.Scan(&c.ID, &c.Name, &c.Details, &c.IsSidebar, &parent, &c.Direct, &c.Resolved)
+	err := row.Scan(&c.ID, &c.Name, &c.Details, &c.Image, &c.IsSidebar, &parent, &c.Direct, &c.Resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -465,7 +466,7 @@ func (d *database) GetUsers() ([]*sidebar.User, error) {
 func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 	var parent sql.NullString
 	var channels []*sidebar.Channel
-	rows, err := psql.Select("ch.id", "ch.display_name", "ch.details", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
+	rows, err := psql.Select("ch.id", "ch.display_name", "ch.details", "ch.display_image", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
 		From("channels as ch").
 		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").
 		RunWith(d).Query()
@@ -475,7 +476,7 @@ func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 
 	for rows.Next() {
 		var c channel
-		err := rows.Scan(&c.ID, &c.Name, &c.Details, &c.IsSidebar, &parent, &c.Direct, &c.Resolved)
+		err := rows.Scan(&c.ID, &c.Name, &c.Details, &c.Image, &c.IsSidebar, &parent, &c.Direct, &c.Resolved)
 		if err != nil {
 			return nil, errors.Errorf("Error scanning channels %v", err)
 		}
@@ -534,6 +535,17 @@ func (d *database) UpdateUserPassword(id string, password []byte) error {
 	_, err := psql.Update("users").
 		Set("password", password).
 		Where(sq.Eq{"id": id}).
+		RunWith(d).Exec()
+
+	return err
+}
+
+func (d *database) UpdateChannelInformation(c *sidebar.Channel) error {
+	_, err := psql.Update("channels").
+		Set("display_name", c.Name).
+		Set("details", c.Details).
+		Set("display_image", c.Image).
+		Where(sq.Eq{"id": c.ID}).
 		RunWith(d).Exec()
 
 	return err

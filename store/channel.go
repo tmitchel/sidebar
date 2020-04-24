@@ -8,6 +8,7 @@ type channel struct {
 	ID        string
 	Name      string
 	Details   string
+	Image     string
 	IsSidebar bool
 	Parent    string
 	Direct    bool
