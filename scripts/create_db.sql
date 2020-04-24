@@ -20,6 +20,7 @@ DROP TABLE IF EXISTS channels CASCADE;
 CREATE TABLE channels (
     id VARCHAR(36) UNIQUE,
     display_name VARCHAR(255) UNIQUE NOT NULL,
+    details TEXT,
     is_sidebar BOOLEAN DEFAULT FALSE,
     is_direct BOOLEAN DEFAULT FALSE,
     resolved BOOLEAN DEFAULT FALSE,

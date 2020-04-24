@@ -7,6 +7,7 @@ import (
 type channel struct {
 	ID        string
 	Name      string
+	Details   string
 	IsSidebar bool
 	Parent    string
 	Direct    bool
@@ -20,6 +21,7 @@ func channelFromModel(c *sidebar.Channel) *channel {
 	return &channel{
 		ID:        c.ID,
 		Name:      c.Name,
+		Details:   c.Details,
 		IsSidebar: c.IsSidebar,
 		Parent:    c.Parent,
 		Direct:    c.Direct,
@@ -31,6 +33,7 @@ func (c *channel) ToModel() *sidebar.Channel {
 	return &sidebar.Channel{
 		ID:        c.ID,
 		Name:      c.Name,
+		Details:   c.Details,
 		IsSidebar: c.IsSidebar,
 		Parent:    c.Parent,
 		Direct:    c.Direct,
