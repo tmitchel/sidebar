@@ -21,7 +21,7 @@ CREATE TABLE channels (
     id VARCHAR(36) UNIQUE,
     display_name VARCHAR(255) UNIQUE NOT NULL,
     details TEXT,
-    display_iamge TEXT NOT NULL,
+    display_image TEXT NOT NULL,
     is_sidebar BOOLEAN DEFAULT FALSE,
     is_direct BOOLEAN DEFAULT FALSE,
     resolved BOOLEAN DEFAULT FALSE,

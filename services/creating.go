@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/tmitchel/sidebar"
@@ -50,6 +51,7 @@ func (c *creater) CreateChannel(ch *sidebar.Channel) (*sidebar.Channel, error) {
 	if ch.Image == "" {
 		ch.Image = "https://randomuser.me/api/portraits/women/81.jpg"
 	}
+	fmt.Println(ch)
 	return c.DB.CreateChannel(ch)
 }
 
