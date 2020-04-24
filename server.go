@@ -603,9 +603,8 @@ func (s *server) CreateSidebar() http.HandlerFunc {
 			return
 		}
 
-		reqID := mux.Vars(r)["parent_id"]
 		reqChannel.IsSidebar = true
-		reqChannel.Parent = reqID
+		reqChannel.Parent = mux.Vars(r)["parent_id"]
 
 		channel, err := s.Create.CreateChannel(&reqChannel)
 		if err != nil {
@@ -614,11 +613,19 @@ func (s *server) CreateSidebar() http.HandlerFunc {
 			return
 		}
 
-		reqID = mux.Vars(r)["user_id"]
-		err = s.Add.AddUserToChannel(reqID, channel.ID)
+		members, err := s.Get.GetUsersInChannel(reqChannel.Parent)
 		if err != nil {
-			http.Error(w, "Unable to add user to sidebar", http.StatusInternalServerError)
-			logrus.Error(err)
+			http.Error(w, "Unable to get users from parent channel", http.StatusInternalServerError)
+			logrus.Error(w, "Error creating sidebar %v", err)
+			return
+		}
+
+		for _, member := range members {
+			err = s.Add.AddUserToChannel(member.ID, channel.ID)
+			if err != nil {
+				http.Error(w, "Unable to add user to sidebar", http.StatusInternalServerError)
+				logrus.Error(err)
+			}
 		}
 
 		json.NewEncoder(w).Encode(channel)
