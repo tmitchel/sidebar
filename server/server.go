@@ -219,7 +219,7 @@ func (s *server) UpdateChannelInfo() http.HandlerFunc {
 
 		if !found {
 			http.Error(w, "Cannot update channel that you aren't a part of", http.StatusBadRequest)
-			logrus.Error("Cannot update channel that you aren't a part of. %v", currentUser.ID)
+			logrus.Errorf("Cannot update channel that you aren't a part of. %v", currentUser.ID)
 			return
 		}
 
