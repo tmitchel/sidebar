@@ -9,6 +9,9 @@ type adder struct {
 	DB store.Adder
 }
 
+// NewAdder takes the database dependency and uses it to implement
+// the sidebar.Adder interface. This interface is used to create new
+// objects and store them in the database.
 func NewAdder(db store.Adder) (sidebar.Adder, error) {
 	return &adder{
 		DB: db,

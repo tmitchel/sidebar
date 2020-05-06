@@ -9,6 +9,9 @@ type getter struct {
 	DB store.Getter
 }
 
+// NewGetter takes the database dependency and uses it to implement
+// the sidebar.Getter interface. This interface is used to retrieve
+// objects from store the database.
 func NewGetter(db store.Getter) (sidebar.Getter, error) {
 	return &getter{
 		DB: db,

@@ -21,6 +21,8 @@ func NewAuthenticater(db store.Database) (sidebar.Authenticater, error) {
 	}, nil
 }
 
+// Validate gets the requested user from the database, checks the given password,
+// then returns the full user if the password is correct.
 func (a *auth) Validate(email, password string) (*sidebar.User, error) {
 	authUser, err := a.DB.UserForAuth(email)
 	if err != nil {
