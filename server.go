@@ -24,28 +24,6 @@ func init() {
 	key = []byte("TheKey2")
 }
 
-// Server returns something that can handle http requests.
-type Server interface {
-	Serve() *mux.Router
-	GetChannel() http.HandlerFunc
-	GetMessage() http.HandlerFunc
-	GetUser() http.HandlerFunc
-	GetSidebars() http.HandlerFunc
-	GetChannels() http.HandlerFunc
-	GetMessages() http.HandlerFunc
-	GetUsers() http.HandlerFunc
-	CreateChannel() http.HandlerFunc
-	CreateUser() http.HandlerFunc
-
-	// untested...
-	AddUserToChannel() http.HandlerFunc
-	DeleteChannel() http.HandlerFunc
-	DeleteUser() http.HandlerFunc
-	Login() http.HandlerFunc
-	// requireAuth
-	HandleWS() http.HandlerFunc
-}
-
 type server struct {
 	hub    *chathub
 	router *mux.Router
@@ -63,7 +41,7 @@ type server struct {
 // then uses those services to spin-up an HTTP server. A hub for
 // handling Websocket connections is also started in a goroutine.
 // These things are wrapped in the server and returned.
-func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, get Getter, up Updater) Server {
+func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, get Getter, up Updater) *server {
 	hub := newChathub(create)
 
 	s := &server{
@@ -132,20 +110,6 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 // Return just the mux.Router to be used in http.ListenAndServe.
 func (s *server) Serve() *mux.Router {
 	return s.router
-}
-
-func accessControl(h http.Handler) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS, PUT")
-		w.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
-
-		if r.Method == "OPTIONS" {
-			return
-		}
-
-		h.ServeHTTP(w, r)
-	})
 }
 
 func (s *server) UpdateUserPassword() http.HandlerFunc {

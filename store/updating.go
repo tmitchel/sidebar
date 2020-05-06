@@ -22,7 +22,6 @@ func (d *database) UpdateUserInformation(u *sidebar.User) error {
 		Set("profile_image", u.ProfileImg).
 		Where(sq.Eq{"id": u.ID}).
 		RunWith(d).Exec()
-
 	return err
 }
 
@@ -32,7 +31,6 @@ func (d *database) UpdateUserPassword(id string, password []byte) error {
 		Set("password", password).
 		Where(sq.Eq{"id": id}).
 		RunWith(d).Exec()
-
 	return err
 }
 
@@ -45,6 +43,5 @@ func (d *database) UpdateChannelInformation(c *sidebar.Channel) error {
 		Set("display_image", c.Image).
 		Where(sq.Eq{"id": c.ID}).
 		RunWith(d).Exec()
-
 	return err
 }

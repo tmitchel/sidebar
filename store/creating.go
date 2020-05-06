@@ -19,7 +19,6 @@ func (d *database) NewToken(token string, userID string) error {
 		Columns("token", "creater_id").
 		Values(token, userID).
 		RunWith(d).Exec()
-
 	return err
 }
 
@@ -29,7 +28,6 @@ func CreateUserNoToken(d Database, u *sidebar.User) (*sidebar.User, error) {
 		Values(u.ID, u.DisplayName, u.Email, u.Password, "https://randomuser.me/api/portraits/women/81.jpg").
 		Suffix("RETURNING id").
 		RunWith(d).Exec()
-
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +40,6 @@ func createUser(d Database, u *sidebar.User) (*sidebar.User, error) {
 		Columns("id", "display_name", "email", "password", "profile_image").
 		Values(u.ID, u.DisplayName, u.Email, u.Password, "https://randomuser.me/api/portraits/women/81.jpg").
 		RunWith(d).Exec()
-
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +64,6 @@ func (d *database) CreateUser(u *sidebar.User, token string) (*sidebar.User, err
 		Columns("id", "display_name", "email", "password", "profile_image").
 		Values(u.ID, u.DisplayName, u.Email, u.Password, u.ProfileImg).
 		RunWith(d).Exec()
-
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +72,6 @@ func (d *database) CreateUser(u *sidebar.User, token string) (*sidebar.User, err
 		Set("valid", false).Set("new_user_id", u.ID).
 		Where(sq.Eq{"token": token}).
 		RunWith(d).Exec()
-
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +84,6 @@ func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 		Columns("id", "display_name", "details", "display_image", "is_sidebar", "is_direct").
 		Values(c.ID, c.Name, c.Details, c.Image, c.IsSidebar, c.Direct).
 		RunWith(d).Exec()
-
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +104,6 @@ func (d *database) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocke
 	_, err := psql.Insert("messages").
 		Columns("id", "content", "event").Values(m.ID, m.Content, m.Event).
 		RunWith(d).Exec()
-
 	if err != nil {
 		return nil, err
 	}

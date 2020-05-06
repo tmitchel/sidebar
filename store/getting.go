@@ -30,9 +30,9 @@ type Getter interface {
 // GetUser returns the user with the given id.
 func (d *database) GetUser(id string) (*sidebar.User, error) {
 	var u sidebar.User
-	row := psql.Select("id", "display_name", "email", "password", "profile_image").
-		From("users").Where(sq.Eq{"id": id}).RunWith(d).QueryRow()
-	err := row.Scan(&u.ID, &u.DisplayName, &u.Email, &u.Password, &u.ProfileImg)
+	err := psql.Select("id", "display_name", "email", "password", "profile_image").
+		From("users").Where(sq.Eq{"id": id}).RunWith(d).QueryRow().
+		Scan(&u.ID, &u.DisplayName, &u.Email, &u.Password, &u.ProfileImg)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,6 @@ func (d *database) GetChannelsForUser(id string) ([]*sidebar.Channel, error) {
 		Join("users_channels uc ON ( uc.channel_id = ch.id )").
 		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").
 		Where(sq.Eq{"uc.user_id": id}).RunWith(d).Query()
-
 	if err != nil {
 		return nil, err
 	}
@@ -99,10 +98,10 @@ func (d *database) GetChannelsForUser(id string) ([]*sidebar.Channel, error) {
 func (d *database) GetChannel(id string) (*sidebar.Channel, error) {
 	var parent sql.NullString
 	var c sidebar.Channel
-	row := psql.Select("ch.id", "ch.display_name", "ch.details", "ch.display_image", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
+	err := psql.Select("ch.id", "ch.display_name", "ch.details", "ch.display_image", "ch.is_sidebar", "sb.parent_id", "ch.is_direct", "ch.resolved").
 		From("channels as ch").
-		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").Where(sq.Eq{"ch.id": id}).RunWith(d).QueryRow()
-	err := row.Scan(&c.ID, &c.Name, &c.Details, &c.Image, &c.IsSidebar, &parent, &c.Direct, &c.Resolved)
+		JoinClause("FULL JOIN sidebars sb ON (sb.id = ch.id)").Where(sq.Eq{"ch.id": id}).RunWith(d).QueryRow().
+		Scan(&c.ID, &c.Name, &c.Details, &c.Image, &c.IsSidebar, &parent, &c.Direct, &c.Resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -117,11 +116,11 @@ func (d *database) GetChannel(id string) (*sidebar.Channel, error) {
 // GetMessage returns the message with the given id.
 func (d *database) GetMessage(id string) (*sidebar.WebSocketMessage, error) {
 	var m sidebar.WebSocketMessage
-	row := psql.Select("ms.id", "ms.event", "ms.content", "cm.channel_id", "um.user_from_id", "um.user_to_id").From("messages as ms").
+	err := psql.Select("ms.id", "ms.event", "ms.content", "cm.channel_id", "um.user_from_id", "um.user_to_id").From("messages as ms").
 		Join("channels_messages cm ON (cm.message_id = ms.id)").
 		Join("users_messages um ON ( um.message_id = ms.id )").
-		RunWith(d).QueryRow()
-	err := row.Scan(&m.ID, &m.Event, &m.Content, &m.Channel, &m.FromUser, &m.ToUser)
+		RunWith(d).QueryRow().
+		Scan(&m.ID, &m.Event, &m.Content, &m.Channel, &m.FromUser, &m.ToUser)
 	if err != nil {
 		return nil, err
 	}

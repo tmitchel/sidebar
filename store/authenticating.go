@@ -15,9 +15,9 @@ type Authenticater interface {
 // and returns the user's id and password for authenticating.
 func (d *database) UserForAuth(email string) (*sidebar.User, error) {
 	var authUser sidebar.User
-	row := psql.Select("id", "password").
-		From("users").Where(sq.Eq{"email": email}).RunWith(d).QueryRow()
-	err := row.Scan(&authUser.ID, &authUser.Password)
+	err := psql.Select("id", "password").
+		From("users").Where(sq.Eq{"email": email}).RunWith(d).QueryRow().
+		Scan(&authUser.ID, &authUser.Password)
 	if err != nil {
 		return nil, err
 	}

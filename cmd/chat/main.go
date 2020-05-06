@@ -15,11 +15,13 @@ import (
 )
 
 func main() {
+	// load environment variables from .env file
 	err := godotenv.Load()
 	if err != nil {
 		logrus.Error("Error loading .env file. If not deploying, consider checking.")
 	}
 
+	// read database connection info from env variables
 	var dbConn string
 	if os.Getenv("PRODDY") == "true" {
 		dbConn = os.Getenv("DATABASE_URL")
@@ -28,12 +30,15 @@ func main() {
 			"password=%s dbname=%s sslmode=disable",
 			os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"), os.Getenv("POSTGRES_DB"))
 	}
+
+	// open the database connection and defer closing it
 	db, err := store.New(dbConn)
 	if err != nil {
 		logrus.Fatal(err)
 	}
 	defer db.Close()
 
+	// setup all services
 	auth, err := services.NewAuthenticater(db)
 	if err != nil {
 		logrus.Fatal(err)
@@ -64,6 +69,7 @@ func main() {
 		logrus.Fatal(err)
 	}
 
+	// if the database is empty, create a default user
 	if u, err := get.GetUsers(); err != nil {
 		logrus.Fatal("Can't query for users on start")
 	} else if len(u) == 0 {
@@ -81,8 +87,10 @@ func main() {
 		})
 	}
 
+	// build the server and inject dependencies
 	server := sidebar.NewServer(auth, create, delete, add, get, up)
 
+	// serve
 	if os.Getenv("PORT") != "" {
 		http.ListenAndServe(":"+os.Getenv("PORT"), accessControl(false, server.Serve()))
 	} else {

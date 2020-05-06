@@ -49,7 +49,3 @@ func (h *chathub) run() {
 		}
 	}
 }
-
-func (h *chathub) Unregister(cl *client) {
-	h.unregister <- cl
-}
