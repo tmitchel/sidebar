@@ -12,12 +12,29 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/tmitchel/sidebar"
 )
 
 // type for context.WithValue keys
 type ctxKey string
+
+type serverError struct {
+	Error   error
+	Message string
+	Status  int
+}
+
+// errHandle provides a less verbose way to handle errors
+type errHandler func(http.ResponseWriter, *http.Request) *serverError
+
+func (fn errHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := fn(w, r); err != nil {
+		logrus.Errorf("%v", err.Error)
+		http.Error(w, err.Message, err.Status)
+	}
+}
 
 var key []byte
 
@@ -58,52 +75,53 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 	router := mux.NewRouter().StrictSlash(true)
 	apiRouter := router.PathPrefix("/api").Subrouter()
 
-	apiRouter.Handle("/channels", s.requireAuth(s.GetChannels())).Methods("GET")
-	apiRouter.Handle("/sidebars", s.requireAuth(s.GetSidebars())).Methods("GET")
-	apiRouter.Handle("/messages", s.requireAuth(s.GetMessages())).Methods("GET")
-	apiRouter.Handle("/users", s.requireAuth(s.GetUsers())).Methods("GET")
+	apiRouter.Handle("/channels", s.GetChannels()).Methods("GET")
+	apiRouter.Handle("/sidebars", s.GetSidebars()).Methods("GET")
+	apiRouter.Handle("/messages", s.GetMessages()).Methods("GET")
+	apiRouter.Handle("/users", s.GetUsers()).Methods("GET")
 
-	apiRouter.Handle("/load_channel/{id}", s.requireAuth(s.LoadChannel())).Methods("GET")
-	apiRouter.Handle("/load_user/{id}", s.requireAuth(s.LoadUser())).Methods("GET")
+	apiRouter.Handle("/load_channel/{id}", s.LoadChannel()).Methods("GET")
+	apiRouter.Handle("/load_user/{id}", s.LoadUser()).Methods("GET")
 
-	apiRouter.Handle("/channel/{id}", s.requireAuth(s.GetChannel())).Methods("GET")
-	apiRouter.Handle("/message/{id}", s.requireAuth(s.GetMessage())).Methods("GET")
-	apiRouter.Handle("/user/{id}", s.requireAuth(s.GetUser())).Methods("GET")
+	apiRouter.Handle("/channel/{id}", s.GetChannel()).Methods("GET")
+	apiRouter.Handle("/message/{id}", s.GetMessage()).Methods("GET")
+	apiRouter.Handle("/user/{id}", s.GetUser()).Methods("GET")
 
-	apiRouter.Handle("/channels/", s.requireAuth(s.GetChannelsForUser())).Methods("GET")   // r.URL.Query()["user"]
-	apiRouter.Handle("/sidebars/", s.requireAuth(s.GetSidebarsForUser())).Methods("GET")   // r.URL.Query()["user"]
-	apiRouter.Handle("/messages/", s.requireAuth(s.GetMessagesToUser())).Methods("GET")    // r.URL.Query()["to_user"]
-	apiRouter.Handle("/messages/", s.requireAuth(s.GetMessagesFromUser())).Methods("GET")  // r.URL.Query()["from_user"]
-	apiRouter.Handle("/messages/", s.requireAuth(s.GetMessagesInChannel())).Methods("GET") // r.URL.Query()["channel"]
-	apiRouter.Handle("/users/", s.requireAuth(s.GetUsersInChannel())).Methods("GET")       // r.URL.Query()["channel"]
+	apiRouter.Handle("/channels/", s.GetChannelsForUser()).Methods("GET")   // r.URL.Query()["user"]
+	apiRouter.Handle("/sidebars/", s.GetSidebarsForUser()).Methods("GET")   // r.URL.Query()["user"]
+	apiRouter.Handle("/messages/", s.GetMessagesToUser()).Methods("GET")    // r.URL.Query()["to_user"]
+	apiRouter.Handle("/messages/", s.GetMessagesFromUser()).Methods("GET")  // r.URL.Query()["from_user"]
+	apiRouter.Handle("/messages/", s.GetMessagesInChannel()).Methods("GET") // r.URL.Query()["channel"]
+	apiRouter.Handle("/users/", s.GetUsersInChannel()).Methods("GET")       // r.URL.Query()["channel"]
 
-	apiRouter.Handle("/channel", s.requireAuth(s.CreateChannel())).Methods("POST")
-	apiRouter.Handle("/sidebar/{parent_id}/{user_id}", s.requireAuth(s.CreateSidebar())).Methods("POST")
-	apiRouter.Handle("/direct/{to_id}/{from_id}", s.requireAuth(s.CreateDirect())).Methods("POST")
+	apiRouter.Handle("/channel", s.CreateChannel()).Methods("POST")
+	apiRouter.Handle("/sidebar/{parent_id}/{user_id}", s.CreateSidebar()).Methods("POST")
+	apiRouter.Handle("/direct/{to_id}/{from_id}", s.CreateDirect()).Methods("POST")
 	apiRouter.Handle("/user/{create_token}", s.CreateUser()).Methods("POST")
-	apiRouter.Handle("/new_token", s.requireAuth(s.NewToken())).Methods("POST")
-	apiRouter.Handle("/resolve/{channel_id}", s.requireAuth(s.ResolveSidebar())).Methods("POST")
-	apiRouter.Handle("/update-userinfo", s.requireAuth(s.UpdateUserInfo())).Methods("POST")
-	apiRouter.Handle("/update-userpass", s.requireAuth(s.UpdateUserPassword())).Methods("POST")
-	apiRouter.Handle("/update-channelinfo", s.requireAuth(s.UpdateChannelInfo())).Methods("POST")
+	apiRouter.Handle("/new_token", s.NewToken()).Methods("POST")
+	apiRouter.Handle("/resolve/{channel_id}", s.ResolveSidebar()).Methods("POST")
+	apiRouter.Handle("/update-userinfo", s.UpdateUserInfo()).Methods("POST")
+	apiRouter.Handle("/update-userpass", s.UpdateUserPassword()).Methods("POST")
+	apiRouter.Handle("/update-channelinfo", s.UpdateChannelInfo()).Methods("POST")
 
-	apiRouter.Handle("/add/{user}/{channel}", s.requireAuth(s.AddUserToChannel())).Methods("POST")
-	apiRouter.Handle("/leave/{user}/{channel}", s.requireAuth(s.RemoveUserFromChannel())).Methods("DELETE")
+	apiRouter.Handle("/add/{user}/{channel}", s.AddUserToChannel()).Methods("POST")
+	apiRouter.Handle("/leave/{user}/{channel}", s.RemoveUserFromChannel()).Methods("DELETE")
 
-	apiRouter.Handle("/channel", s.requireAuth(s.DeleteChannel())).Methods("DELETE")
-	apiRouter.Handle("/user", s.requireAuth(s.DeleteUser())).Methods("DELETE")
+	apiRouter.Handle("/channel", s.DeleteChannel()).Methods("DELETE")
+	apiRouter.Handle("/user", s.DeleteUser()).Methods("DELETE")
 
-	apiRouter.Handle("/online_users", s.requireAuth(s.OnlineUsers())).Methods("GET")
-	apiRouter.Handle("/refresh_token", s.requireAuth(s.RefreshToken())).Methods("POST")
+	apiRouter.Handle("/online_users", s.OnlineUsers()).Methods("GET")
+	apiRouter.Handle("/refresh_token", s.RefreshToken()).Methods("POST")
+	apiRouter.Use(s.requireAuth) // must be authenticated to use the api endpoints
 
 	router.Handle("/ws", s.requireAuth(s.HandleWS()))
 	router.Handle("/login", s.Login()).Methods("POST")
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "views/home.html")
 	}).Methods("GET")
+
 	s.router = router
 	go s.hub.run()
-
 	return s
 }
 
@@ -112,101 +130,87 @@ func (s *server) Serve() *mux.Router {
 	return s.router
 }
 
-func (s *server) UpdateUserPassword() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) UpdateUserPassword() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		var payload updatePass
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			http.Error(w, "Unable to decode payload", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
 		currentUser, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
 		if !ok {
-			http.Error(w, "Unable to decode current user", http.StatusBadRequest)
-			logrus.Error("Unable to decode current user")
-			return
+			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
 		}
 
 		if payload.ID != currentUser.ID {
-			http.Error(w, "Request user doesn't match current user", http.StatusBadRequest)
-			logrus.Errorf("Request user doesn't match current user. Current: %v Request: %v", currentUser.ID, payload.ID)
-			return
+			return &serverError{
+				errors.Errorf("Request user doesn't match current user. Current: %v Request: %v", currentUser.ID, payload.ID),
+				"Request user doesn't match current user.",
+				http.StatusBadRequest,
+			}
 		}
 
 		err := s.Up.UpdateUserPassword(payload.ID, []byte(payload.OldPassword), []byte(payload.NewPassword))
 		if err != nil {
-			http.Error(w, "Error updating user info", http.StatusBadRequest)
-			logrus.Errorf("Error updating user info %v", err)
-			return
+			return &serverError{err, "Error updating user info", http.StatusBadRequest}
 		}
 
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "Success")
+		return nil
 	}
 }
 
-func (s *server) UpdateUserInfo() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) UpdateUserInfo() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		var reqUser sidebar.User
 		if err := json.NewDecoder(r.Body).Decode(&reqUser); err != nil {
-			http.Error(w, "Unable to decode new user", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
 		currentUser, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
 		if !ok {
-			http.Error(w, "Unable to decode current user", http.StatusBadRequest)
-			logrus.Error("Unable to decode current user")
-			return
+			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
 		}
 
 		if reqUser.ID != currentUser.ID {
-			http.Error(w, "Request user doesn't match current user", http.StatusBadRequest)
-			logrus.Errorf("Request user doesn't match current user. Current: %v Request: %v", currentUser.ID, reqUser.ID)
-			return
+			return &serverError{
+				errors.Errorf("Request user doesn't match current user. Current: %v Request: %v", currentUser.ID, reqUser.ID),
+				"Request user doesn't match current user.",
+				http.StatusBadRequest,
+			}
 		}
 
 		err := s.Up.UpdateUserInfo(&reqUser)
 		if err != nil {
-			http.Error(w, "Error updating user info", http.StatusBadRequest)
-			logrus.Errorf("Error updating user info %v", err)
-			return
+			return &serverError{err, "Error updating user info", http.StatusBadRequest}
 		}
 
 		newUser, err := s.Get.GetUser(reqUser.ID)
 		if err != nil {
-			http.Error(w, "Error getting updated user", http.StatusBadRequest)
-			logrus.Errorf("Error getting updated user %v", err)
-			return
+			return &serverError{err, "Error getting updated user", http.StatusBadRequest}
 		}
 
 		json.NewEncoder(w).Encode(newUser)
+		return nil
 	}
 }
 
-func (s *server) UpdateChannelInfo() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) UpdateChannelInfo() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		var reqChannel sidebar.Channel
 		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
-			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
 		currentUser, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
 		if !ok {
-			http.Error(w, "Unable to decode current user", http.StatusBadRequest)
-			logrus.Error("Unable to decode current user")
-			return
+			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
 		}
 
 		members, err := s.Get.GetUsersInChannel(reqChannel.ID)
 		if err != nil {
-			http.Error(w, "Unable get members of channel", http.StatusBadRequest)
-			logrus.Error("Unable get members of channel")
-			return
+			return &serverError{err, "Unable to get memebers of the channel", http.StatusBadRequest}
 		}
 
 		var found bool
@@ -218,51 +222,40 @@ func (s *server) UpdateChannelInfo() http.HandlerFunc {
 		}
 
 		if !found {
-			http.Error(w, "Cannot update channel that you aren't a part of", http.StatusBadRequest)
-			logrus.Errorf("Cannot update channel that you aren't a part of. %v", currentUser.ID)
-			return
+			return &serverError{err, "Cannot update channel that you aren't a part of", http.StatusBadRequest}
 		}
 
 		err = s.Up.UpdateChannelInfo(&reqChannel)
 		if err != nil {
-			http.Error(w, "Error updating channel info", http.StatusBadRequest)
-			logrus.Errorf("Error updating channel info %v", err)
-			return
+			return &serverError{err, "Error updating channel info", http.StatusBadRequest}
 		}
 
 		newChannel, err := s.Get.GetChannel(reqChannel.ID)
 		if err != nil {
-			http.Error(w, "Error getting updated channel", http.StatusBadRequest)
-			logrus.Errorf("Error getting updated channel %v", err)
-			return
+			return &serverError{err, "Error getting updated channel", http.StatusBadRequest}
 		}
 
 		json.NewEncoder(w).Encode(newChannel)
+		return nil
 	}
 }
 
-func (s *server) LoadChannel() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) LoadChannel() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		reqID := mux.Vars(r)["id"]
 		channel, err := s.Get.GetChannel(reqID)
 		if err != nil {
-			http.Error(w, "Unable to get channel", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to get channel id from request param", http.StatusInternalServerError}
 		}
 
 		users, err := s.Get.GetUsers()
 		if err != nil {
-			http.Error(w, "Unable to get users for channel", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to get users for channel", http.StatusInternalServerError}
 		}
 
 		messages, err := s.Get.GetMessagesInChannel(reqID)
 		if err != nil {
-			http.Error(w, "Unable to get messages for channel", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to get messages for channel", http.StatusInternalServerError}
 		}
 
 		json.NewEncoder(w).Encode(CompleteChannel{
@@ -270,31 +263,26 @@ func (s *server) LoadChannel() http.HandlerFunc {
 			UsersInChannel:    users,
 			MessagesInChannel: messages,
 		})
+		return nil
 	}
 }
 
-func (s *server) LoadUser() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) LoadUser() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		reqID := mux.Vars(r)["id"]
 		user, err := s.Get.GetUser(reqID)
 		if err != nil {
-			http.Error(w, "Unable to get user", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to get user id from request param", http.StatusInternalServerError}
 		}
 
 		allChannels, err := s.Get.GetChannels()
 		if err != nil {
-			http.Error(w, "Unable to get all channels", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to get all channels", http.StatusInternalServerError}
 		}
 
 		channelsForUser, err := s.Get.GetChannelsForUser(reqID)
 		if err != nil {
-			http.Error(w, "Unable to get channels for user", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to get channels for user", http.StatusInternalServerError}
 		}
 
 		channelWithInfo := make([]*ChannelForUser, len(allChannels))
@@ -314,56 +302,54 @@ func (s *server) LoadUser() http.HandlerFunc {
 			User:     *user,
 			Channels: channelWithInfo,
 		})
+		return nil
 	}
 }
 
-func (s *server) OnlineUsers() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) OnlineUsers() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		users := make([]sidebar.User, len(s.hub.clients))
 		for u := range s.hub.clients {
 			users = append(users, u.User)
 		}
 
 		json.NewEncoder(w).Encode(users)
+		return nil
 	}
 }
 
-func (s *server) GetUsersInChannel() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetUsersInChannel() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		channelID := r.URL.Query().Get("channel")
 		channels, err := s.Get.GetUsersInChannel(channelID)
 		if err != nil {
-			http.Error(w, "Error converting channelID", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Error getting users in the channel", http.StatusBadRequest}
 		}
 
 		json.NewEncoder(w).Encode(channels)
+		return nil
 	}
 }
 
-func (s *server) GetChannelsForUser() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetChannelsForUser() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		userID := r.URL.Query().Get("user_id")
 		channels, err := s.Get.GetChannelsForUser(userID)
 		if err != nil {
-			http.Error(w, "Error converting userID", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Error getting channels for the user", http.StatusBadRequest}
 		}
 
 		json.NewEncoder(w).Encode(channels)
+		return nil
 	}
 }
 
-func (s *server) GetSidebarsForUser() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetSidebarsForUser() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		userID := r.URL.Query().Get("user_id")
 		channels, err := s.Get.GetChannelsForUser(userID)
 		if err != nil {
-			http.Error(w, "Error converting userID", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Error getting sidebars for the user", http.StatusBadRequest}
 		}
 
 		var sidebars []*sidebar.Channel
@@ -374,126 +360,121 @@ func (s *server) GetSidebarsForUser() http.HandlerFunc {
 		}
 
 		json.NewEncoder(w).Encode(sidebars)
+		return nil
 	}
 }
 
-func (s *server) GetMessagesToUser() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetMessagesToUser() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		userID := r.URL.Query().Get("to_user")
 		messages, err := s.Get.GetMessagesToUser(userID)
 		if err != nil {
-			http.Error(w, "Error getting messages", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Error getting messages to the user", http.StatusBadRequest}
 		}
 
 		json.NewEncoder(w).Encode(messages)
+		return nil
 	}
 }
 
-func (s *server) GetMessagesFromUser() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetMessagesFromUser() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		userID := r.URL.Query().Get("from_user")
 		messages, err := s.Get.GetMessagesFromUser(userID)
 		if err != nil {
-			http.Error(w, "Error getting messages", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Error getting messages from the user", http.StatusBadRequest}
 		}
 
 		json.NewEncoder(w).Encode(messages)
+		return nil
 	}
 }
 
-func (s *server) GetMessagesInChannel() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetMessagesInChannel() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		channelID := r.URL.Query().Get("channel")
 		messages, err := s.Get.GetMessagesInChannel(channelID)
 		if err != nil {
-			http.Error(w, "Error getting messages", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Error getting messages in the channel", http.StatusBadRequest}
 		}
 
 		json.NewEncoder(w).Encode(messages)
+		return nil
 	}
 }
 
-func (s *server) AddUserToChannel() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) AddUserToChannel() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		userID := mux.Vars(r)["user"]
 		channelID := mux.Vars(r)["channel"]
 		if err := s.Add.AddUserToChannel(userID, channelID); err != nil {
-			http.Error(w, "Unable to add user to channel", http.StatusInternalServerError)
+			return &serverError{err, "Unable to add user to channel", http.StatusInternalServerError}
 		}
 
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "Successfully added user %v to channel %v", userID, channelID)
+		return nil
 	}
 }
 
-func (s *server) RemoveUserFromChannel() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) RemoveUserFromChannel() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		userID := mux.Vars(r)["user"]
 		channelID := mux.Vars(r)["channel"]
 		if err := s.Add.RemoveUserFromChannel(userID, channelID); err != nil {
-			http.Error(w, "Unable to remove user from channel", http.StatusInternalServerError)
+			return &serverError{err, "Unable to remove user from channel", http.StatusInternalServerError}
 		}
 
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "Successfully removed user %v from channel %v", userID, channelID)
+		return nil
 	}
 }
 
-func (s *server) GetUser() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetUser() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		reqID := mux.Vars(r)["id"]
 		user, err := s.Get.GetUser(reqID)
 		if err != nil {
-			http.Error(w, "Unable to get user", http.StatusInternalServerError)
-			logrus.Errorf("Unable to get user %v", reqID)
-			return
+			return &serverError{err, "Unable to get user id from request param", http.StatusInternalServerError}
 		}
 
 		json.NewEncoder(w).Encode(user)
+		return nil
 	}
 }
 
-func (s *server) GetChannel() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetChannel() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		reqID := mux.Vars(r)["id"]
 		channel, err := s.Get.GetChannel(reqID)
 		if err != nil {
-			http.Error(w, "Unable to get channel", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to get channel id from request param", http.StatusInternalServerError}
 		}
 
 		json.NewEncoder(w).Encode(channel)
+		return nil
 	}
 }
 
-func (s *server) GetMessage() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetMessage() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		reqID := mux.Vars(r)["id"]
 		message, err := s.Get.GetMessage(reqID)
 		if err != nil {
-			http.Error(w, "Unable to get message", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to get message id from request param", http.StatusInternalServerError}
 		}
 
 		json.NewEncoder(w).Encode(message)
+		return nil
 	}
 }
 
-func (s *server) GetUsers() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetUsers() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		users, err := s.Get.GetUsers()
 		if err != nil {
-			http.Error(w, "Unable to get users", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to get users", http.StatusInternalServerError}
 		}
 
 		var u []sidebar.User
@@ -502,29 +483,27 @@ func (s *server) GetUsers() http.HandlerFunc {
 		}
 
 		json.NewEncoder(w).Encode(users)
+		return nil
 	}
 }
 
-func (s *server) GetChannels() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetChannels() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		channels, err := s.Get.GetChannels()
 		if err != nil {
-			http.Error(w, "Unable to get channels", http.StatusInternalServerError)
-			logrus.Errorf("Error getting channels %v", err)
-			return
+			return &serverError{err, "Unable to get channels", http.StatusInternalServerError}
 		}
 
 		json.NewEncoder(w).Encode(channels)
+		return nil
 	}
 }
 
-func (s *server) GetSidebars() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetSidebars() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		channels, err := s.Get.GetChannels()
 		if err != nil {
-			http.Error(w, "Unable to get channels", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to get sidebars", http.StatusInternalServerError}
 		}
 
 		var sidebars []*sidebar.Channel
@@ -535,49 +514,44 @@ func (s *server) GetSidebars() http.HandlerFunc {
 		}
 
 		json.NewEncoder(w).Encode(sidebars)
+		return nil
 	}
 }
 
-func (s *server) GetMessages() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) GetMessages() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		messages, err := s.Get.GetMessages()
 		if err != nil {
-			http.Error(w, "Unable to get messages", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to get messages", http.StatusInternalServerError}
 		}
 
 		json.NewEncoder(w).Encode(messages)
+		return nil
 	}
 }
 
-func (s *server) CreateChannel() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) CreateChannel() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		var reqChannel sidebar.Channel
 		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
-			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
 		channel, err := s.Create.CreateChannel(&reqChannel)
 		if err != nil {
-			http.Error(w, "Unable to create channel", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to create channel", http.StatusInternalServerError}
 		}
 
 		json.NewEncoder(w).Encode(channel)
+		return nil
 	}
 }
 
-func (s *server) CreateDirect() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) CreateDirect() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		var reqChannel sidebar.Channel
 		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
-			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
 		toID := mux.Vars(r)["to_id"]
@@ -585,37 +559,29 @@ func (s *server) CreateDirect() http.HandlerFunc {
 		reqChannel.Direct = true
 		channel, err := s.Create.CreateChannel(&reqChannel)
 		if err != nil {
-			http.Error(w, "Unable to create sidebar", http.StatusInternalServerError)
-			logrus.Error(w, "Error creating sidebar %v", err)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to create direct channel", http.StatusInternalServerError}
 		}
 
 		err = s.Add.AddUserToChannel(toID, channel.ID)
 		if err != nil {
-			http.Error(w, "Unable to add to user to direct", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to add 'to' user to channel", http.StatusInternalServerError}
 		}
 
 		err = s.Add.AddUserToChannel(fromID, channel.ID)
 		if err != nil {
-			http.Error(w, "Unable to add from user to direct", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to add 'from' user to channel", http.StatusInternalServerError}
 		}
 
 		json.NewEncoder(w).Encode(channel)
+		return nil
 	}
 }
 
-func (s *server) CreateSidebar() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) CreateSidebar() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		var reqChannel sidebar.Channel
 		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
-			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
 		reqChannel.IsSidebar = true
@@ -623,38 +589,32 @@ func (s *server) CreateSidebar() http.HandlerFunc {
 
 		channel, err := s.Create.CreateChannel(&reqChannel)
 		if err != nil {
-			http.Error(w, "Unable to create sidebar", http.StatusInternalServerError)
-			logrus.Error(w, "Error creating sidebar %v", err)
-			return
+			return &serverError{err, "Unable to create sidebar", http.StatusInternalServerError}
 		}
 
 		members, err := s.Get.GetUsersInChannel(reqChannel.Parent)
 		if err != nil {
-			http.Error(w, "Unable to get users from parent channel", http.StatusInternalServerError)
-			logrus.Error(w, "Error creating sidebar %v", err)
-			return
+			return &serverError{err, "Unable to get users from parent channel", http.StatusInternalServerError}
 		}
 
 		for _, member := range members {
 			err = s.Add.AddUserToChannel(member.ID, channel.ID)
 			if err != nil {
-				http.Error(w, "Unable to add user to sidebar", http.StatusInternalServerError)
-				logrus.Error(err)
+				return &serverError{err, "Unable to add user to sidebar", http.StatusInternalServerError}
 			}
 		}
 
 		json.NewEncoder(w).Encode(channel)
+		return nil
 	}
 }
 
-func (s *server) CreateUser() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) CreateUser() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		token := mux.Vars(r)["create_token"]
 		var reqUser SignupUser
 		if err := json.NewDecoder(r.Body).Decode(&reqUser); err != nil {
-			http.Error(w, "Unable to decode new user", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
 		converted := sidebar.User{
@@ -666,9 +626,7 @@ func (s *server) CreateUser() http.HandlerFunc {
 		}
 		user, err := s.Create.CreateUser(&converted, token)
 		if err != nil {
-			http.Error(w, "Unable to create user", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to create user", http.StatusInternalServerError}
 		}
 
 		expiration := time.Now().Add(time.Minute * 15)
@@ -685,9 +643,7 @@ func (s *server) CreateUser() http.HandlerFunc {
 		userToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 		tokenString, err := userToken.SignedString(key)
 		if err != nil {
-			http.Error(w, "Unable to sign token", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to sign token", http.StatusInternalServerError}
 		}
 
 		http.SetCookie(w, &http.Cookie{
@@ -700,90 +656,81 @@ func (s *server) CreateUser() http.HandlerFunc {
 		})
 
 		json.NewEncoder(w).Encode(user)
+		return nil
 	}
 }
 
-func (s *server) NewToken() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) NewToken() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		user, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
 		if !ok {
-			http.Error(w, "Unable to get user from context", http.StatusInternalServerError)
-			logrus.Error("Can't get info from context")
-			return
+			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
 		}
 
 		token, err := s.Create.NewToken(user.ID)
 		if err != nil {
-			http.Error(w, "Error creating token", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Error creating token", http.StatusInternalServerError}
 		}
 
 		json.NewEncoder(w).Encode(struct{ Token string }{token})
+		return nil
 	}
 }
 
-func (s *server) ResolveSidebar() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) ResolveSidebar() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		sid := mux.Vars(r)["channel_id"]
 		err := s.Add.ResolveChannel(sid)
 		if err != nil {
-			http.Error(w, "Unable to update channel", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to resolve channel", http.StatusInternalServerError}
 		}
 
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "Success")
+		return nil
 	}
 }
 
-func (s *server) DeleteChannel() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) DeleteChannel() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		var reqID string
 		if err := json.NewDecoder(r.Body).Decode(&reqID); err != nil || reqID == "" {
-			http.Error(w, "Unable to decode request id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
 		channel, err := s.Delete.DeleteChannel(reqID)
 		if err != nil {
-			http.Error(w, "Unable to delete channel", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to delete channel", http.StatusInternalServerError}
 		}
 
 		json.NewEncoder(w).Encode(channel)
+		return nil
 	}
 }
 
-func (s *server) DeleteUser() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) DeleteUser() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		var reqID string
 		if err := json.NewDecoder(r.Body).Decode(&reqID); err != nil || reqID == "" {
-			http.Error(w, "Unable to decode request id", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
 		user, err := s.Delete.DeleteUser(reqID)
 		if err != nil {
-			http.Error(w, "Unable to delete user", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to delete user", http.StatusInternalServerError}
 		}
 
 		json.NewEncoder(w).Encode(user)
+		return nil
 	}
 }
 
-// Login returns an http.HandlerFunc to deal with user attempts to
+// Login returns an errHandler to deal with user attempts to
 // log in. The user is authenticated and then a cookie is stored with
 // information for later.
-func (s *server) Login() http.HandlerFunc {
+func (s *server) Login() errHandler {
 	gob.Register(sidebar.User{})
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		if os.Getenv("PORT") == "" {
 			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
 		} else {
@@ -794,16 +741,12 @@ func (s *server) Login() http.HandlerFunc {
 
 		var auther auth
 		if err := json.NewDecoder(r.Body).Decode(&auther); err != nil {
-			http.Error(w, "Ill-formatted login attempt", http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Ill-formatted login attempt", http.StatusBadRequest}
 		}
 
 		user, err := s.Auth.Validate(auther.Email, auther.Password)
 		if err != nil || user == nil {
-			http.Error(w, "Incorrect username/password", http.StatusForbidden)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Incorrect username/password", http.StatusForbidden}
 		}
 
 		expiration := time.Now().Add(time.Minute * 15)
@@ -819,9 +762,7 @@ func (s *server) Login() http.HandlerFunc {
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 		tokenString, err := token.SignedString(key)
 		if err != nil {
-			http.Error(w, "Unable to sign token", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Unable to sign token", http.StatusInternalServerError}
 		}
 
 		http.SetCookie(w, &http.Cookie{
@@ -834,16 +775,15 @@ func (s *server) Login() http.HandlerFunc {
 		})
 
 		json.NewEncoder(w).Encode(user)
+		return nil
 	}
 }
 
-func (s *server) RefreshToken() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) RefreshToken() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		c, err := r.Cookie("chat-cook")
 		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			logrus.Error("Error with cookie", err)
-			return
+			return &serverError{err, "Error with cookie", http.StatusUnauthorized}
 		}
 
 		tokStr := c.Value
@@ -853,25 +793,18 @@ func (s *server) RefreshToken() http.HandlerFunc {
 		})
 
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Error parsing JWT", http.StatusUnauthorized}
 		} else if !tkn.Valid {
-			w.WriteHeader(http.StatusUnauthorized)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Error token is not valid", http.StatusUnauthorized}
 		}
 
 		// Check if user is authenticated
 		if !claims.Authenticated {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Error user not authenticated", http.StatusUnauthorized}
 		}
 
 		if time.Unix(claims.ExpiresAt, 0).Sub(time.Now()) > 90*time.Second {
-			w.WriteHeader(http.StatusTooEarly)
-			return
+			return &serverError{nil, "Not ready", http.StatusTooEarly}
 		}
 
 		expiration := time.Now().Add(15 * time.Minute)
@@ -879,9 +812,7 @@ func (s *server) RefreshToken() http.HandlerFunc {
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 		tokenString, err := token.SignedString(key)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{err, "Error signing token", http.StatusInternalServerError}
 		}
 
 		http.SetCookie(w, &http.Cookie{
@@ -892,12 +823,13 @@ func (s *server) RefreshToken() http.HandlerFunc {
 			SameSite: http.SameSiteNoneMode,
 			Secure:   true,
 		})
+		return nil
 	}
 }
 
 // requireAuth provides an authentication middleware
-func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (s *server) requireAuth(f http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie("chat-cook")
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -935,20 +867,20 @@ func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
 		}
 
 		ctx := context.WithValue(r.Context(), ctxKey("user_info"), user)
-		f(w, r.WithContext(ctx))
-	}
+		f.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // HandleWS provides a handler for getting Websocket connections setup
 // and registering a new client with the hub.
-func (s *server) HandleWS() http.HandlerFunc {
+func (s *server) HandleWS() errHandler {
 	var upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
 
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			logrus.Fatalf("unable to upgrade connection %v", err)
@@ -956,9 +888,7 @@ func (s *server) HandleWS() http.HandlerFunc {
 
 		user, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
 		if !ok {
-			http.Error(w, "Unable to get user from context", http.StatusInternalServerError)
-			logrus.Error(err)
-			return
+			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
 		}
 
 		cl := &client{
@@ -972,5 +902,6 @@ func (s *server) HandleWS() http.HandlerFunc {
 
 		go cl.writePump()
 		go cl.readPump()
+		return nil
 	}
 }
