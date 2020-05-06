@@ -1,7 +1,7 @@
 package services
 
 import (
-	"errors"
+	"github.com/pkg/errors"
 
 	"github.com/google/uuid"
 	"github.com/tmitchel/sidebar"
@@ -42,7 +42,7 @@ func (c *creater) CreateUser(u *sidebar.User, token string) (*sidebar.User, erro
 
 	hashed, err := bcrypt.GenerateFromPassword(u.Password, bcrypt.DefaultCost)
 	if err != nil {
-		return nil, errors.New("Error hashing password")
+		return nil, errors.Wrap(err, "Error hashing password")
 	}
 
 	u.Password = hashed
