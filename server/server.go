@@ -1,4 +1,4 @@
-package sidebar
+package server
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
+	"github.com/tmitchel/sidebar"
 )
 
 // type for context.WithValue keys
@@ -29,19 +30,19 @@ type server struct {
 	router *mux.Router
 
 	// services
-	Auth   Authenticater
-	Create Creater
-	Delete Deleter
-	Add    Adder
-	Get    Getter
-	Up     Updater
+	Auth   sidebar.Authenticater
+	Create sidebar.Creater
+	Delete sidebar.Deleter
+	Add    sidebar.Adder
+	Get    sidebar.Getter
+	Up     sidebar.Updater
 }
 
 // NewServer receives all services needed to provide functionality
 // then uses those services to spin-up an HTTP server. A hub for
 // handling Websocket connections is also started in a goroutine.
 // These things are wrapped in the server and returned.
-func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, get Getter, up Updater) *server {
+func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sidebar.Deleter, add sidebar.Adder, get sidebar.Getter, up sidebar.Updater) *server {
 	hub := newChathub(create)
 
 	s := &server{
@@ -55,7 +56,6 @@ func NewServer(auth Authenticater, create Creater, delete Deleter, add Adder, ge
 	}
 
 	router := mux.NewRouter().StrictSlash(true)
-
 	apiRouter := router.PathPrefix("/api").Subrouter()
 
 	apiRouter.Handle("/channels", s.requireAuth(s.GetChannels())).Methods("GET")
@@ -113,11 +113,6 @@ func (s *server) Serve() *mux.Router {
 }
 
 func (s *server) UpdateUserPassword() http.HandlerFunc {
-	type updatePass struct {
-		ID          string
-		OldPassword string `json:"old_password"`
-		NewPassword string `json:"new_password"`
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload updatePass
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -126,7 +121,7 @@ func (s *server) UpdateUserPassword() http.HandlerFunc {
 			return
 		}
 
-		currentUser, ok := r.Context().Value(ctxKey("user_info")).(User)
+		currentUser, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
 		if !ok {
 			http.Error(w, "Unable to decode current user", http.StatusBadRequest)
 			logrus.Error("Unable to decode current user")
@@ -153,14 +148,14 @@ func (s *server) UpdateUserPassword() http.HandlerFunc {
 
 func (s *server) UpdateUserInfo() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var reqUser User
+		var reqUser sidebar.User
 		if err := json.NewDecoder(r.Body).Decode(&reqUser); err != nil {
 			http.Error(w, "Unable to decode new user", http.StatusBadRequest)
 			logrus.Error(err)
 			return
 		}
 
-		currentUser, ok := r.Context().Value(ctxKey("user_info")).(User)
+		currentUser, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
 		if !ok {
 			http.Error(w, "Unable to decode current user", http.StatusBadRequest)
 			logrus.Error("Unable to decode current user")
@@ -193,14 +188,14 @@ func (s *server) UpdateUserInfo() http.HandlerFunc {
 
 func (s *server) UpdateChannelInfo() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var reqChannel Channel
+		var reqChannel sidebar.Channel
 		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
 			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
 			logrus.Error(err)
 			return
 		}
 
-		currentUser, ok := r.Context().Value(ctxKey("user_info")).(User)
+		currentUser, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
 		if !ok {
 			http.Error(w, "Unable to decode current user", http.StatusBadRequest)
 			logrus.Error("Unable to decode current user")
@@ -324,7 +319,7 @@ func (s *server) LoadUser() http.HandlerFunc {
 
 func (s *server) OnlineUsers() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		users := make([]User, len(s.hub.clients))
+		users := make([]sidebar.User, len(s.hub.clients))
 		for u := range s.hub.clients {
 			users = append(users, u.User)
 		}
@@ -371,7 +366,7 @@ func (s *server) GetSidebarsForUser() http.HandlerFunc {
 			return
 		}
 
-		var sidebars []*Channel
+		var sidebars []*sidebar.Channel
 		for _, c := range channels {
 			if c.IsSidebar {
 				sidebars = append(sidebars, c)
@@ -501,7 +496,7 @@ func (s *server) GetUsers() http.HandlerFunc {
 			return
 		}
 
-		var u []User
+		var u []sidebar.User
 		for _, us := range users {
 			u = append(u, *us)
 		}
@@ -532,7 +527,7 @@ func (s *server) GetSidebars() http.HandlerFunc {
 			return
 		}
 
-		var sidebars []*Channel
+		var sidebars []*sidebar.Channel
 		for _, c := range channels {
 			if c.IsSidebar && c.Parent != "" {
 				sidebars = append(sidebars, c)
@@ -558,7 +553,7 @@ func (s *server) GetMessages() http.HandlerFunc {
 
 func (s *server) CreateChannel() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var reqChannel Channel
+		var reqChannel sidebar.Channel
 		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
 			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
 			logrus.Error(err)
@@ -578,7 +573,7 @@ func (s *server) CreateChannel() http.HandlerFunc {
 
 func (s *server) CreateDirect() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var reqChannel Channel
+		var reqChannel sidebar.Channel
 		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
 			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
 			logrus.Error(err)
@@ -616,7 +611,7 @@ func (s *server) CreateDirect() http.HandlerFunc {
 
 func (s *server) CreateSidebar() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var reqChannel Channel
+		var reqChannel sidebar.Channel
 		if err := json.NewDecoder(r.Body).Decode(&reqChannel); err != nil {
 			http.Error(w, "Unable to decode new channel", http.StatusBadRequest)
 			logrus.Error(err)
@@ -653,13 +648,6 @@ func (s *server) CreateSidebar() http.HandlerFunc {
 }
 
 func (s *server) CreateUser() http.HandlerFunc {
-	type Token struct {
-		UserID        string
-		Email         string
-		UserName      string
-		Authenticated bool
-		jwt.StandardClaims
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := mux.Vars(r)["create_token"]
 		var reqUser SignupUser
@@ -669,7 +657,7 @@ func (s *server) CreateUser() http.HandlerFunc {
 			return
 		}
 
-		converted := User{
+		converted := sidebar.User{
 			ID:          reqUser.ID,
 			DisplayName: reqUser.DisplayName,
 			Email:       reqUser.Email,
@@ -717,7 +705,7 @@ func (s *server) CreateUser() http.HandlerFunc {
 
 func (s *server) NewToken() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := r.Context().Value(ctxKey("user_info")).(User)
+		user, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
 		if !ok {
 			http.Error(w, "Unable to get user from context", http.StatusInternalServerError)
 			logrus.Error("Can't get info from context")
@@ -794,20 +782,7 @@ func (s *server) DeleteUser() http.HandlerFunc {
 // log in. The user is authenticated and then a cookie is stored with
 // information for later.
 func (s *server) Login() http.HandlerFunc {
-	gob.Register(User{})
-	type auth struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-
-	type Token struct {
-		UserID        string
-		Email         string
-		UserName      string
-		Authenticated bool
-		jwt.StandardClaims
-	}
-
+	gob.Register(sidebar.User{})
 	return func(w http.ResponseWriter, r *http.Request) {
 		if os.Getenv("PORT") == "" {
 			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
@@ -863,13 +838,6 @@ func (s *server) Login() http.HandlerFunc {
 }
 
 func (s *server) RefreshToken() http.HandlerFunc {
-	type Token struct {
-		UserID        string
-		Email         string
-		UserName      string
-		Authenticated bool
-		jwt.StandardClaims
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie("chat-cook")
 		if err != nil {
@@ -929,15 +897,6 @@ func (s *server) RefreshToken() http.HandlerFunc {
 
 // requireAuth provides an authentication middleware
 func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
-
-	type Token struct {
-		UserID        string
-		Email         string
-		UserName      string
-		Authenticated bool
-		jwt.StandardClaims
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie("chat-cook")
 		if err != nil {
@@ -969,38 +928,11 @@ func (s *server) requireAuth(f http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		user := User{
+		user := sidebar.User{
 			ID:          claims.UserID,
 			Email:       claims.Email,
 			DisplayName: claims.UserName,
 		}
-
-		// expiration := time.Now().Add(15 * time.Minute)
-		// claims = &Token{
-		// 	UserID:        user.ID,
-		// 	Email:         user.Email,
-		// 	UserName:      user.DisplayName,
-		// 	Authenticated: true,
-		// 	StandardClaims: jwt.StandardClaims{
-		// 		ExpiresAt: expiration.Unix(),
-		// 	},
-		// }
-		// token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		// tokenString, err := token.SignedString(key)
-		// if err != nil {
-		// 	http.Error(w, "Unable to sign token", http.StatusInternalServerError)
-		// 	logrus.Error(err)
-		// 	return
-		// }
-
-		// http.SetCookie(w, &http.Cookie{
-		// 	Name:     "chat-cook",
-		// 	Value:    tokenString,
-		// 	Expires:  expiration,
-		// 	HttpOnly: true,
-		// 	SameSite: http.SameSiteNoneMode,
-		// 	Secure:   true,
-		// })
 
 		ctx := context.WithValue(r.Context(), ctxKey("user_info"), user)
 		f(w, r.WithContext(ctx))
@@ -1022,7 +954,7 @@ func (s *server) HandleWS() http.HandlerFunc {
 			logrus.Fatalf("unable to upgrade connection %v", err)
 		}
 
-		user, ok := r.Context().Value(ctxKey("user_info")).(User)
+		user, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
 		if !ok {
 			http.Error(w, "Unable to get user from context", http.StatusInternalServerError)
 			logrus.Error(err)
@@ -1031,7 +963,7 @@ func (s *server) HandleWS() http.HandlerFunc {
 
 		cl := &client{
 			conn: conn,
-			send: make(chan WebSocketMessage),
+			send: make(chan sidebar.WebSocketMessage),
 			hub:  s.hub,
 			User: user,
 		}

@@ -9,6 +9,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 	"github.com/tmitchel/sidebar"
+	"github.com/tmitchel/sidebar/server"
 	"github.com/tmitchel/sidebar/services"
 	"github.com/tmitchel/sidebar/store"
 	"golang.org/x/crypto/bcrypt"
@@ -88,7 +89,7 @@ func main() {
 	}
 
 	// build the server and inject dependencies
-	server := sidebar.NewServer(auth, create, delete, add, get, up)
+	server := server.NewServer(auth, create, delete, add, get, up)
 
 	// serve
 	if os.Getenv("PORT") != "" {

@@ -1,10 +1,11 @@
-package sidebar
+package server
 
 import (
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
+	"github.com/tmitchel/sidebar"
 )
 
 const (
@@ -23,14 +24,14 @@ const (
 
 type client struct {
 	conn *websocket.Conn
-	send chan WebSocketMessage
+	send chan sidebar.WebSocketMessage
 	hub  *chathub
-	User User
+	User sidebar.User
 }
 
-// Digest decides how to handle a WebSocketMessage based
+// Digest decides how to handle a sidebar.WebSocketMessage based
 // on the event type.
-func (c *client) Digest(msg WebSocketMessage) {
+func (c *client) Digest(msg sidebar.WebSocketMessage) {
 	switch msg.Event {
 	case 1:
 		// handle message
@@ -50,7 +51,7 @@ func (c *client) readPump() {
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
-		var msg WebSocketMessage
+		var msg sidebar.WebSocketMessage
 		if err := c.conn.ReadJSON(&msg); err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived, websocket.CloseGoingAway) {
 				logrus.Error("websocket closed by client")

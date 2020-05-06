@@ -1,14 +1,18 @@
-package sidebar
+package server
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/tmitchel/sidebar"
+)
 
 type Storage interface {
-	CreateMessage(*WebSocketMessage) (*WebSocketMessage, error)
+	CreateMessage(*sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error)
 }
 
 type chathub struct {
 	clients    map[*client]bool
-	broadcast  chan WebSocketMessage
+	broadcast  chan sidebar.WebSocketMessage
 	register   chan *client
 	unregister chan *client
 	db         Storage
@@ -19,7 +23,7 @@ type chathub struct {
 func newChathub(s Storage) *chathub {
 	return &chathub{
 		clients:    make(map[*client]bool),
-		broadcast:  make(chan WebSocketMessage),
+		broadcast:  make(chan sidebar.WebSocketMessage),
 		register:   make(chan *client),
 		unregister: make(chan *client),
 		db:         s,

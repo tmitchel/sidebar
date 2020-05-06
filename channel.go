@@ -11,14 +11,3 @@ type Channel struct {
 	Direct    bool   `json:"direct"`
 	Resolved  bool   `json:"resolved"`
 }
-
-type CompleteChannel struct {
-	Channel           Channel
-	UsersInChannel    []*User
-	MessagesInChannel []*WebSocketMessage
-}
-
-type ChannelForUser struct {
-	Channel
-	Member bool
-}
