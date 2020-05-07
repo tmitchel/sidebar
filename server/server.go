@@ -132,7 +132,7 @@ func (s *server) Serve() *mux.Router {
 
 func (s *server) UpdateUserPassword() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		var payload updatePass
+		var payload PasswordUpdate
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
@@ -258,7 +258,7 @@ func (s *server) LoadChannel() errHandler {
 			return &serverError{err, "Unable to get messages for channel", http.StatusInternalServerError}
 		}
 
-		json.NewEncoder(w).Encode(CompleteChannel{
+		json.NewEncoder(w).Encode(ChannelWithUsersAndMessages{
 			Channel:           *channel,
 			UsersInChannel:    users,
 			MessagesInChannel: messages,
@@ -285,7 +285,7 @@ func (s *server) LoadUser() errHandler {
 			return &serverError{err, "Unable to get channels for user", http.StatusInternalServerError}
 		}
 
-		channelWithInfo := make([]*ChannelForUser, len(allChannels))
+		channelWithInfo := make([]*ChannelWithMemberInfo, len(allChannels))
 		var matched bool
 		for i, c := range allChannels {
 			matched = false
@@ -295,10 +295,10 @@ func (s *server) LoadUser() errHandler {
 					break
 				}
 			}
-			channelWithInfo[i] = &ChannelForUser{Channel: *c, Member: matched}
+			channelWithInfo[i] = &ChannelWithMemberInfo{Channel: *c, Member: matched}
 		}
 
-		json.NewEncoder(w).Encode(CompleteUser{
+		json.NewEncoder(w).Encode(UserWithChannels{
 			User:     *user,
 			Channels: channelWithInfo,
 		})
@@ -321,12 +321,12 @@ func (s *server) OnlineUsers() errHandler {
 func (s *server) GetUsersInChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		channelID := r.URL.Query().Get("channel")
-		channels, err := s.Get.GetUsersInChannel(channelID)
+		users, err := s.Get.GetUsersInChannel(channelID)
 		if err != nil {
 			return &serverError{err, "Error getting users in the channel", http.StatusBadRequest}
 		}
 
-		json.NewEncoder(w).Encode(channels)
+		json.NewEncoder(w).Encode(users)
 		return nil
 	}
 }
@@ -349,7 +349,7 @@ func (s *server) GetSidebarsForUser() errHandler {
 		userID := r.URL.Query().Get("user_id")
 		channels, err := s.Get.GetChannelsForUser(userID)
 		if err != nil {
-			return &serverError{err, "Error getting sidebars for the user", http.StatusBadRequest}
+			return &serverError{err, "Error getting channels for the user", http.StatusBadRequest}
 		}
 
 		var sidebars []*sidebar.Channel
@@ -630,7 +630,7 @@ func (s *server) CreateUser() errHandler {
 		}
 
 		expiration := time.Now().Add(time.Minute * 15)
-		claims := &Token{
+		claims := &JWTToken{
 			UserID:        user.ID,
 			Email:         user.Email,
 			UserName:      user.DisplayName,
@@ -739,7 +739,7 @@ func (s *server) Login() errHandler {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
-		var auther auth
+		var auther AuthInfo
 		if err := json.NewDecoder(r.Body).Decode(&auther); err != nil {
 			return &serverError{err, "Ill-formatted login attempt", http.StatusBadRequest}
 		}
@@ -750,7 +750,7 @@ func (s *server) Login() errHandler {
 		}
 
 		expiration := time.Now().Add(time.Minute * 15)
-		claims := &Token{
+		claims := &JWTToken{
 			UserID:        user.ID,
 			Email:         user.Email,
 			UserName:      user.DisplayName,
@@ -787,7 +787,7 @@ func (s *server) RefreshToken() errHandler {
 		}
 
 		tokStr := c.Value
-		claims := &Token{}
+		claims := &JWTToken{}
 		tkn, err := jwt.ParseWithClaims(tokStr, claims, func(token *jwt.Token) (interface{}, error) {
 			return key, nil
 		})
@@ -838,7 +838,7 @@ func (s *server) requireAuth(f http.Handler) http.Handler {
 		}
 
 		tokStr := c.Value
-		claims := &Token{}
+		claims := &JWTToken{}
 		tkn, err := jwt.ParseWithClaims(tokStr, claims, func(token *jwt.Token) (interface{}, error) {
 			return key, nil
 		})
