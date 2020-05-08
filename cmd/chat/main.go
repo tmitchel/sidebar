@@ -95,7 +95,7 @@ func main() {
 	if os.Getenv("PORT") != "" {
 		http.ListenAndServe(":"+os.Getenv("PORT"), accessControl(false, server.Serve()))
 	} else {
-		http.ListenAndServeTLS(":8080", "localhost.pem", "localhost-key.pem", accessControl(true, logging(server.Serve())))
+		http.ListenAndServeTLS(":8080", "localhost.pem", "localhost-key.pem", accessControl(true, server.Serve()))
 	}
 }
 
@@ -115,14 +115,6 @@ func accessControl(local bool, h http.Handler) http.Handler {
 			return
 		}
 
-		h.ServeHTTP(w, r)
-	})
-}
-
-// log requests
-func logging(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logrus.Printf("%s: %s", r.Method, r.RequestURI)
 		h.ServeHTTP(w, r)
 	})
 }

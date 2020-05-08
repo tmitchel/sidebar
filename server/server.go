@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/tmitchel/sidebar"
+	"github.com/urfave/negroni"
 )
 
 // type for context.WithValue keys
@@ -126,8 +127,10 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 }
 
 // Return just the mux.Router to be used in http.ListenAndServe.
-func (s *server) Serve() *mux.Router {
-	return s.router
+func (s *server) Serve() http.Handler {
+	n := negroni.Classic()
+	n.UseHandler(s.router)
+	return n
 }
 
 func (s *server) UpdateUserPassword() errHandler {

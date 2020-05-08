@@ -33,7 +33,8 @@ type UserWithChannels struct {
 }
 
 // ChannelWithMemberInfo contains a channel, a user id, and a bool
-// telling whether the user is a member of this channel.
+// telling whether the user is a member of this channel. This is
+// stored within a UserWithChannels struct.
 type ChannelWithMemberInfo struct {
 	sidebar.Channel
 	MemberID string
