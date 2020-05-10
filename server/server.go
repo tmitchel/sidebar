@@ -1,18 +1,18 @@
 package server
 
 import (
-	"context"
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
+	jwtmiddleware "github.com/auth0/go-jwt-middleware"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
+	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 	"github.com/tmitchel/sidebar"
 	"github.com/urfave/negroni"
@@ -73,8 +73,21 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 		Up:     up,
 	}
 
+	jwtMiddleware := jwtmiddleware.New(jwtmiddleware.Options{
+		ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
+			return []byte("TheKey2"), nil
+		},
+		Extractor:     jwtmiddleware.FromFirst(jwtmiddleware.FromAuthHeader, jwtmiddleware.FromParameter("auth_code")),
+		SigningMethod: jwt.SigningMethodHS256,
+	})
+
 	router := mux.NewRouter().StrictSlash(true)
-	apiRouter := router.PathPrefix("/api").Subrouter()
+	apiBase := mux.NewRouter()
+	router.PathPrefix("/api").Handler(negroni.New(
+		negroni.HandlerFunc(jwtMiddleware.HandlerWithNext),
+		negroni.Wrap(apiBase),
+	))
+	apiRouter := apiBase.PathPrefix("/api").Subrouter()
 
 	apiRouter.Handle("/channels", s.GetChannels()).Methods("GET")
 	apiRouter.Handle("/sidebars", s.GetSidebars()).Methods("GET")
@@ -113,9 +126,9 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 
 	apiRouter.Handle("/online_users", s.OnlineUsers()).Methods("GET")
 	apiRouter.Handle("/refresh_token", s.RefreshToken()).Methods("POST")
-	apiRouter.Use(s.requireAuth) // must be authenticated to use the api endpoints
+	apiRouter.Handle("/ws", s.HandleWS())
 
-	router.Handle("/ws", s.requireAuth(s.HandleWS()))
+	// unprotected
 	router.Handle("/login", s.Login()).Methods("POST")
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "views/home.html")
@@ -126,9 +139,19 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 	return s
 }
 
-// Return just the mux.Router to be used in http.ListenAndServe.
+// Return just the mux.Router to be used in http.ListenAndServe after wrapping
+// in CORS middleware.
 func (s *server) Serve() http.Handler {
 	n := negroni.Classic()
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:8081", "https://sidebar-frontend.now.sh"},
+		AllowedHeaders:   []string{"Origin", "Content-Type", "Authorization"},
+		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodDelete},
+		AllowCredentials: true,
+	})
+
+	// cors middleware
+	n.Use(c)
 	n.UseHandler(s.router)
 	return n
 }
@@ -635,8 +658,6 @@ func (s *server) CreateUser() errHandler {
 		expiration := time.Now().Add(time.Minute * 15)
 		claims := &JWTToken{
 			UserID:        user.ID,
-			Email:         user.Email,
-			UserName:      user.DisplayName,
 			Authenticated: true,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: expiration.Unix(),
@@ -734,14 +755,6 @@ func (s *server) DeleteUser() errHandler {
 func (s *server) Login() errHandler {
 	gob.Register(sidebar.User{})
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		if os.Getenv("PORT") == "" {
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
-		} else {
-			w.Header().Set("Access-Control-Allow-Origin", "https://sidebar-frontend.now.sh")
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-
 		var auther AuthInfo
 		if err := json.NewDecoder(r.Body).Decode(&auther); err != nil {
 			return &serverError{err, "Ill-formatted login attempt", http.StatusBadRequest}
@@ -755,123 +768,46 @@ func (s *server) Login() errHandler {
 		expiration := time.Now().Add(time.Minute * 15)
 		claims := &JWTToken{
 			UserID:        user.ID,
-			Email:         user.Email,
-			UserName:      user.DisplayName,
 			Authenticated: true,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: expiration.Unix(),
 			},
 		}
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		tokenString, err := token.SignedString(key)
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(key)
 		if err != nil {
 			return &serverError{err, "Unable to sign token", http.StatusInternalServerError}
 		}
 
-		http.SetCookie(w, &http.Cookie{
-			Name:     "chat-cook",
-			Value:    tokenString,
-			Expires:  expiration,
-			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
-			Secure:   true,
+		json.NewEncoder(w).Encode(struct {
+			Token string
+			User  sidebar.User
+		}{
+			Token: token,
+			User:  *user,
 		})
-
-		json.NewEncoder(w).Encode(user)
 		return nil
 	}
 }
 
 func (s *server) RefreshToken() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		c, err := r.Cookie("chat-cook")
-		if err != nil {
-			return &serverError{err, "Error with cookie", http.StatusUnauthorized}
-		}
+		token := r.Context().Value("user").(*jwt.Token)
+		user := token.Claims.(jwt.MapClaims)
 
-		tokStr := c.Value
-		claims := &JWTToken{}
-		tkn, err := jwt.ParseWithClaims(tokStr, claims, func(token *jwt.Token) (interface{}, error) {
-			return key, nil
-		})
-
-		if err != nil {
-			return &serverError{err, "Error parsing JWT", http.StatusUnauthorized}
-		} else if !tkn.Valid {
-			return &serverError{err, "Error token is not valid", http.StatusUnauthorized}
-		}
-
-		// Check if user is authenticated
-		if !claims.Authenticated {
-			return &serverError{err, "Error user not authenticated", http.StatusUnauthorized}
-		}
-
-		if time.Unix(claims.ExpiresAt, 0).Sub(time.Now()) > 90*time.Second {
-			return &serverError{nil, "Not ready", http.StatusTooEarly}
+		if time.Unix(int64(user["exp"].(float64)), 0).Sub(time.Now()) > 90*time.Second {
+			return &serverError{errors.New("Token refresh too early"), "Not ready", http.StatusTooEarly}
 		}
 
 		expiration := time.Now().Add(15 * time.Minute)
-		claims.ExpiresAt = expiration.Unix()
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		tokenString, err := token.SignedString(key)
+		user["exp"] = expiration.Unix()
+		newToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, user).SignedString(key)
 		if err != nil {
 			return &serverError{err, "Error signing token", http.StatusInternalServerError}
 		}
 
-		http.SetCookie(w, &http.Cookie{
-			Name:     "chat-cook",
-			Value:    tokenString,
-			Expires:  expiration,
-			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
-			Secure:   true,
-		})
+		json.NewEncoder(w).Encode(struct{ Token string }{newToken})
 		return nil
 	}
-}
-
-// requireAuth provides an authentication middleware
-func (s *server) requireAuth(f http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c, err := r.Cookie("chat-cook")
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			logrus.Error("Error with cookie", err)
-			return
-		}
-
-		tokStr := c.Value
-		claims := &JWTToken{}
-		tkn, err := jwt.ParseWithClaims(tokStr, claims, func(token *jwt.Token) (interface{}, error) {
-			return key, nil
-		})
-
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		} else if !tkn.Valid {
-			w.WriteHeader(http.StatusUnauthorized)
-			logrus.Error(err)
-			return
-		}
-
-		// Check if user is authenticated
-		if !claims.Authenticated {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			logrus.Error(err)
-			return
-		}
-
-		user := sidebar.User{
-			ID:          claims.UserID,
-			Email:       claims.Email,
-			DisplayName: claims.UserName,
-		}
-
-		ctx := context.WithValue(r.Context(), ctxKey("user_info"), user)
-		f.ServeHTTP(w, r.WithContext(ctx))
-	})
 }
 
 // HandleWS provides a handler for getting Websocket connections setup
@@ -889,16 +825,19 @@ func (s *server) HandleWS() errHandler {
 			logrus.Fatalf("unable to upgrade connection %v", err)
 		}
 
-		user, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
-		if !ok {
-			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+
+		user, err := s.Get.GetUser(parsed["UserID"].(string))
+		if err != nil {
+			return &serverError{err, "Unable to get user", http.StatusBadRequest}
 		}
 
 		cl := &client{
 			conn: conn,
 			send: make(chan sidebar.WebSocketMessage),
 			hub:  s.hub,
-			User: user,
+			User: *user,
 		}
 
 		s.hub.register <- cl

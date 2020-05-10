@@ -19,8 +19,6 @@ type SignupUser struct {
 // on the client side.
 type JWTToken struct {
 	UserID        string
-	Email         string
-	UserName      string
 	Authenticated bool
 	jwt.StandardClaims
 }
