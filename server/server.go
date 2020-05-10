@@ -112,7 +112,7 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 	apiRouter.Handle("/sidebar/{parent_id}/{user_id}", s.CreateSidebar()).Methods("POST")
 	apiRouter.Handle("/direct/{to_id}", s.CreateDirect()).Methods("POST")
 	apiRouter.Handle("/user/{create_token}", s.CreateUser()).Methods("POST")
-	apiRouter.Handle("/message", s.CreateUser()).Methods("POST")
+	apiRouter.Handle("/message", s.CreateMessage()).Methods("POST")
 
 	apiRouter.Handle("/new_token", s.NewToken()).Methods("POST")
 
@@ -688,7 +688,11 @@ func (s *server) CreateMessage() errHandler {
 			return &serverError{err, "Unable to save message", http.StatusBadRequest}
 		}
 
-		s.hub.broadcast <- *send
+		s.hub.broadcast <- sidebar.WebsocketMessage{
+			Type:    "chat-message",
+			Payload: send,
+		}
+		w.WriteHeader(http.StatusOK)
 		return nil
 	}
 }
@@ -840,7 +844,7 @@ func (s *server) HandleWS() errHandler {
 
 		cl := &client{
 			conn: conn,
-			send: make(chan sidebar.ChatMessage),
+			send: make(chan sidebar.WebsocketMessage),
 			hub:  s.hub,
 			User: *user,
 		}
@@ -848,7 +852,9 @@ func (s *server) HandleWS() errHandler {
 		s.hub.register <- cl
 
 		go cl.writePump()
-		go cl.readPump()
+		// send messages via POST now
+		// go cl.readPump()
+		w.WriteHeader(http.StatusOK)
 		return nil
 	}
 }

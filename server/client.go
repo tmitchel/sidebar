@@ -24,20 +24,9 @@ const (
 
 type client struct {
 	conn *websocket.Conn
-	send chan sidebar.ChatMessage
+	send chan sidebar.WebsocketMessage
 	hub  *chathub
 	User sidebar.User
-}
-
-// Digest decides how to handle a sidebar.ChatMessage based
-// on the event type.
-func (c *client) Digest(msg sidebar.ChatMessage) {
-	switch msg.Event {
-	case 1:
-		// handle message
-	case 2:
-		// handle starting spin-off discussion
-	}
 }
 
 // readPump listens for messages on the Websocket connection and
@@ -47,28 +36,28 @@ func (c *client) readPump() {
 		c.conn.Close()
 	}()
 
-	c.conn.SetReadLimit(maxMessageSize)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
-	for {
-		var msg sidebar.ChatMessage
-		if err := c.conn.ReadJSON(&msg); err != nil {
-			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived, websocket.CloseGoingAway) {
-				logrus.Error("websocket closed by client")
-			} else {
-				logrus.Errorf("websocket error %v", err)
-			}
-			return
-		}
+	// c.conn.SetReadLimit(maxMessageSize)
+	// c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	// c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	// for {
+	// 	var msg sidebar.ChatMessage
+	// 	if err := c.conn.ReadJSON(&msg); err != nil {
+	// 		if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived, websocket.CloseGoingAway) {
+	// 			logrus.Error("websocket closed by client")
+	// 		} else {
+	// 			logrus.Errorf("websocket error %v", err)
+	// 		}
+	// 		return
+	// 	}
 
-		storedMsg, err := c.hub.db.CreateMessage(&msg)
-		if err != nil {
-			logrus.Errorf("error storing message %v", err)
-		}
-		if storedMsg != nil {
-			c.hub.broadcast <- *storedMsg
-		}
-	}
+	// 	storedMsg, err := c.hub.db.CreateMessage(&msg)
+	// 	if err != nil {
+	// 		logrus.Errorf("error storing message %v", err)
+	// 	}
+	// 	if storedMsg != nil {
+	// 		c.hub.broadcast <- *storedMsg
+	// 	}
+	// }
 }
 
 // writePump listens for the chathub to broadcast a message then

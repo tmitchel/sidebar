@@ -17,3 +17,27 @@ type ChatMessage struct {
 	FromUser string `json:"from_user"`
 	Channel  string `json:"channel"`
 }
+
+// ChannelUpdate is sent over the Websocket connection
+// to alert users of new channels, updates to an existing
+// channel's information, etc.
+type ChannelUpdate struct {
+	Channel
+	Message string `json:"message"`
+}
+
+// Alert is used to send news of an update to users.
+type Alert struct {
+	Target  string `json:"target"`
+	Message string `json:"message"`
+}
+
+// WebsocketMessage represents anything that can
+// be sent over the Websocket connection.
+type WebsocketMessage struct {
+	// Type of message so receiver can decide how to decode
+	Type string
+
+	// information being sent
+	Payload interface{}
+}
