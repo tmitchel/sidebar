@@ -101,25 +101,28 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 	apiRouter.Handle("/message/{id}", s.GetMessage()).Methods("GET")
 	apiRouter.Handle("/user/{id}", s.GetUser()).Methods("GET")
 
-	apiRouter.Handle("/channels/", s.GetChannelsForUser()).Methods("GET")   // r.URL.Query()["user"]
-	apiRouter.Handle("/sidebars/", s.GetSidebarsForUser()).Methods("GET")   // r.URL.Query()["user"]
-	apiRouter.Handle("/messages/", s.GetMessagesToUser()).Methods("GET")    // r.URL.Query()["to_user"]
-	apiRouter.Handle("/messages/", s.GetMessagesFromUser()).Methods("GET")  // r.URL.Query()["from_user"]
-	apiRouter.Handle("/messages/", s.GetMessagesInChannel()).Methods("GET") // r.URL.Query()["channel"]
-	apiRouter.Handle("/users/", s.GetUsersInChannel()).Methods("GET")       // r.URL.Query()["channel"]
+	apiRouter.Handle("/channels/{user}", s.GetChannelsForUser()).Methods("GET")
+	apiRouter.Handle("/sidebars/{user}", s.GetSidebarsForUser()).Methods("GET")
+	apiRouter.Handle("/messages/{to_user}", s.GetMessagesToUser()).Methods("GET")
+	apiRouter.Handle("/messages/{from_user}", s.GetMessagesFromUser()).Methods("GET")
+	apiRouter.Handle("/messages/{channel}", s.GetMessagesInChannel()).Methods("GET")
+	apiRouter.Handle("/users/{channel}", s.GetUsersInChannel()).Methods("GET")
 
 	apiRouter.Handle("/channel", s.CreateChannel()).Methods("POST")
 	apiRouter.Handle("/sidebar/{parent_id}/{user_id}", s.CreateSidebar()).Methods("POST")
 	apiRouter.Handle("/direct/{to_id}", s.CreateDirect()).Methods("POST")
 	apiRouter.Handle("/user/{create_token}", s.CreateUser()).Methods("POST")
+	apiRouter.Handle("/message", s.CreateUser()).Methods("POST")
+
 	apiRouter.Handle("/new_token", s.NewToken()).Methods("POST")
-	apiRouter.Handle("/resolve/{channel_id}", s.ResolveSidebar()).Methods("POST")
+
 	apiRouter.Handle("/update-userinfo", s.UpdateUserInfo()).Methods("POST")
 	apiRouter.Handle("/update-userpass", s.UpdateUserPassword()).Methods("POST")
 	apiRouter.Handle("/update-channelinfo", s.UpdateChannelInfo()).Methods("POST")
 
 	apiRouter.Handle("/add/{channel}", s.AddUserToChannel()).Methods("POST")
 	apiRouter.Handle("/leave/{channel}", s.RemoveUserFromChannel()).Methods("DELETE")
+	apiRouter.Handle("/resolve/{channel_id}", s.ResolveSidebar()).Methods("POST")
 
 	apiRouter.Handle("/channel", s.DeleteChannel()).Methods("DELETE")
 	apiRouter.Handle("/user", s.DeleteUser()).Methods("DELETE")
@@ -333,7 +336,7 @@ func (s *server) OnlineUsers() errHandler {
 
 func (s *server) GetUsersInChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		channelID := r.URL.Query().Get("channel")
+		channelID := mux.Vars(r)["channel"]
 		users, err := s.Get.GetUsersInChannel(channelID)
 		if err != nil {
 			return &serverError{err, "Error getting users in the channel", http.StatusBadRequest}
@@ -346,7 +349,7 @@ func (s *server) GetUsersInChannel() errHandler {
 
 func (s *server) GetChannelsForUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := r.URL.Query().Get("user_id")
+		userID := mux.Vars(r)["user_id"]
 		channels, err := s.Get.GetChannelsForUser(userID)
 		if err != nil {
 			return &serverError{err, "Error getting channels for the user", http.StatusBadRequest}
@@ -359,7 +362,7 @@ func (s *server) GetChannelsForUser() errHandler {
 
 func (s *server) GetSidebarsForUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := r.URL.Query().Get("user_id")
+		userID := mux.Vars(r)["user_id"]
 		channels, err := s.Get.GetChannelsForUser(userID)
 		if err != nil {
 			return &serverError{err, "Error getting channels for the user", http.StatusBadRequest}
@@ -379,7 +382,7 @@ func (s *server) GetSidebarsForUser() errHandler {
 
 func (s *server) GetMessagesToUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := r.URL.Query().Get("to_user")
+		userID := mux.Vars(r)["to_user"]
 		messages, err := s.Get.GetMessagesToUser(userID)
 		if err != nil {
 			return &serverError{err, "Error getting messages to the user", http.StatusBadRequest}
@@ -392,7 +395,7 @@ func (s *server) GetMessagesToUser() errHandler {
 
 func (s *server) GetMessagesFromUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := r.URL.Query().Get("from_user")
+		userID := mux.Vars(r)["from_user"]
 		messages, err := s.Get.GetMessagesFromUser(userID)
 		if err != nil {
 			return &serverError{err, "Error getting messages from the user", http.StatusBadRequest}
@@ -405,7 +408,7 @@ func (s *server) GetMessagesFromUser() errHandler {
 
 func (s *server) GetMessagesInChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		channelID := r.URL.Query().Get("channel")
+		channelID := mux.Vars(r)["channel"]
 		messages, err := s.Get.GetMessagesInChannel(channelID)
 		if err != nil {
 			return &serverError{err, "Error getting messages in the channel", http.StatusBadRequest}
@@ -667,6 +670,25 @@ func (s *server) CreateUser() errHandler {
 		})
 
 		json.NewEncoder(w).Encode(user)
+		return nil
+	}
+}
+
+func (s *server) CreateMessage() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
+		var msg sidebar.WebSocketMessage
+		if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
+		}
+
+		uid := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
+		msg.FromUser = uid
+		send, err := s.Create.CreateMessage(&msg)
+		if err != nil {
+			return &serverError{err, "Unable to save message", http.StatusBadRequest}
+		}
+
+		s.hub.broadcast <- *send
 		return nil
 	}
 }
