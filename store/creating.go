@@ -11,7 +11,7 @@ type Creater interface {
 	NewToken(string, string) error
 	CreateUser(*sidebar.User, string) (*sidebar.User, error)
 	CreateChannel(*sidebar.Channel) (*sidebar.Channel, error)
-	CreateMessage(*sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error)
+	CreateMessage(*sidebar.ChatMessage) (*sidebar.ChatMessage, error)
 }
 
 func (d *database) NewToken(token string, userID string) error {
@@ -100,7 +100,7 @@ func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {
 	return c, nil
 }
 
-func (d *database) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error) {
+func (d *database) CreateMessage(m *sidebar.ChatMessage) (*sidebar.ChatMessage, error) {
 	_, err := psql.Insert("messages").
 		Columns("id", "content", "event").Values(m.ID, m.Content, m.Event).
 		RunWith(d).Exec()

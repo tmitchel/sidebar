@@ -1,18 +1,18 @@
 package server
 
 import (
-	"context"
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
+	jwtmiddleware "github.com/auth0/go-jwt-middleware"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
+	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 	"github.com/tmitchel/sidebar"
 	"github.com/urfave/negroni"
@@ -73,8 +73,21 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 		Up:     up,
 	}
 
+	jwtMiddleware := jwtmiddleware.New(jwtmiddleware.Options{
+		ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
+			return []byte("TheKey2"), nil
+		},
+		Extractor:     jwtmiddleware.FromFirst(jwtmiddleware.FromAuthHeader, jwtmiddleware.FromParameter("auth_code")),
+		SigningMethod: jwt.SigningMethodHS256,
+	})
+
 	router := mux.NewRouter().StrictSlash(true)
-	apiRouter := router.PathPrefix("/api").Subrouter()
+	apiBase := mux.NewRouter()
+	router.PathPrefix("/api").Handler(negroni.New(
+		negroni.HandlerFunc(jwtMiddleware.HandlerWithNext),
+		negroni.Wrap(apiBase),
+	))
+	apiRouter := apiBase.PathPrefix("/api").Subrouter()
 
 	apiRouter.Handle("/channels", s.GetChannels()).Methods("GET")
 	apiRouter.Handle("/sidebars", s.GetSidebars()).Methods("GET")
@@ -88,34 +101,37 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 	apiRouter.Handle("/message/{id}", s.GetMessage()).Methods("GET")
 	apiRouter.Handle("/user/{id}", s.GetUser()).Methods("GET")
 
-	apiRouter.Handle("/channels/", s.GetChannelsForUser()).Methods("GET")   // r.URL.Query()["user"]
-	apiRouter.Handle("/sidebars/", s.GetSidebarsForUser()).Methods("GET")   // r.URL.Query()["user"]
-	apiRouter.Handle("/messages/", s.GetMessagesToUser()).Methods("GET")    // r.URL.Query()["to_user"]
-	apiRouter.Handle("/messages/", s.GetMessagesFromUser()).Methods("GET")  // r.URL.Query()["from_user"]
-	apiRouter.Handle("/messages/", s.GetMessagesInChannel()).Methods("GET") // r.URL.Query()["channel"]
-	apiRouter.Handle("/users/", s.GetUsersInChannel()).Methods("GET")       // r.URL.Query()["channel"]
+	apiRouter.Handle("/channels/{user}", s.GetChannelsForUser()).Methods("GET")
+	apiRouter.Handle("/sidebars/{user}", s.GetSidebarsForUser()).Methods("GET")
+	apiRouter.Handle("/messages/{to_user}", s.GetMessagesToUser()).Methods("GET")
+	apiRouter.Handle("/messages/{from_user}", s.GetMessagesFromUser()).Methods("GET")
+	apiRouter.Handle("/messages/{channel}", s.GetMessagesInChannel()).Methods("GET")
+	apiRouter.Handle("/users/{channel}", s.GetUsersInChannel()).Methods("GET")
 
 	apiRouter.Handle("/channel", s.CreateChannel()).Methods("POST")
 	apiRouter.Handle("/sidebar/{parent_id}/{user_id}", s.CreateSidebar()).Methods("POST")
-	apiRouter.Handle("/direct/{to_id}/{from_id}", s.CreateDirect()).Methods("POST")
+	apiRouter.Handle("/direct/{to_id}", s.CreateDirect()).Methods("POST")
 	apiRouter.Handle("/user/{create_token}", s.CreateUser()).Methods("POST")
+	apiRouter.Handle("/message", s.CreateUser()).Methods("POST")
+
 	apiRouter.Handle("/new_token", s.NewToken()).Methods("POST")
-	apiRouter.Handle("/resolve/{channel_id}", s.ResolveSidebar()).Methods("POST")
+
 	apiRouter.Handle("/update-userinfo", s.UpdateUserInfo()).Methods("POST")
 	apiRouter.Handle("/update-userpass", s.UpdateUserPassword()).Methods("POST")
 	apiRouter.Handle("/update-channelinfo", s.UpdateChannelInfo()).Methods("POST")
 
-	apiRouter.Handle("/add/{user}/{channel}", s.AddUserToChannel()).Methods("POST")
-	apiRouter.Handle("/leave/{user}/{channel}", s.RemoveUserFromChannel()).Methods("DELETE")
+	apiRouter.Handle("/add/{channel}", s.AddUserToChannel()).Methods("POST")
+	apiRouter.Handle("/leave/{channel}", s.RemoveUserFromChannel()).Methods("DELETE")
+	apiRouter.Handle("/resolve/{channel_id}", s.ResolveSidebar()).Methods("POST")
 
 	apiRouter.Handle("/channel", s.DeleteChannel()).Methods("DELETE")
 	apiRouter.Handle("/user", s.DeleteUser()).Methods("DELETE")
 
 	apiRouter.Handle("/online_users", s.OnlineUsers()).Methods("GET")
 	apiRouter.Handle("/refresh_token", s.RefreshToken()).Methods("POST")
-	apiRouter.Use(s.requireAuth) // must be authenticated to use the api endpoints
+	apiRouter.Handle("/ws", s.HandleWS())
 
-	router.Handle("/ws", s.requireAuth(s.HandleWS()))
+	// unprotected
 	router.Handle("/login", s.Login()).Methods("POST")
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "views/home.html")
@@ -126,9 +142,19 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 	return s
 }
 
-// Return just the mux.Router to be used in http.ListenAndServe.
+// Return just the mux.Router to be used in http.ListenAndServe after wrapping
+// in CORS middleware.
 func (s *server) Serve() http.Handler {
 	n := negroni.Classic()
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:8081", "https://sidebar-frontend.now.sh"},
+		AllowedHeaders:   []string{"Origin", "Content-Type", "Authorization"},
+		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodDelete},
+		AllowCredentials: true,
+	})
+
+	// cors middleware
+	n.Use(c)
 	n.UseHandler(s.router)
 	return n
 }
@@ -140,20 +166,10 @@ func (s *server) UpdateUserPassword() errHandler {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
-		currentUser, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
-		if !ok {
-			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
-		}
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
 
-		if payload.ID != currentUser.ID {
-			return &serverError{
-				errors.Errorf("Request user doesn't match current user. Current: %v Request: %v", currentUser.ID, payload.ID),
-				"Request user doesn't match current user.",
-				http.StatusBadRequest,
-			}
-		}
-
-		err := s.Up.UpdateUserPassword(payload.ID, []byte(payload.OldPassword), []byte(payload.NewPassword))
+		err := s.Up.UpdateUserPassword(parsed["UserID"].(string), []byte(payload.OldPassword), []byte(payload.NewPassword))
 		if err != nil {
 			return &serverError{err, "Error updating user info", http.StatusBadRequest}
 		}
@@ -171,14 +187,12 @@ func (s *server) UpdateUserInfo() errHandler {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
-		currentUser, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
-		if !ok {
-			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
-		}
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
 
-		if reqUser.ID != currentUser.ID {
+		if reqUser.ID != parsed["UserID"].(string) {
 			return &serverError{
-				errors.Errorf("Request user doesn't match current user. Current: %v Request: %v", currentUser.ID, reqUser.ID),
+				errors.Errorf("Request user doesn't match current user. Current: %v Request: %v", parsed["UserID"].(string), reqUser.ID),
 				"Request user doesn't match current user.",
 				http.StatusBadRequest,
 			}
@@ -206,19 +220,18 @@ func (s *server) UpdateChannelInfo() errHandler {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
-		currentUser, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
-		if !ok {
-			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
-		}
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		id := parsed["UserID"].(string)
 
-		members, err := s.Get.GetUsersInChannel(reqChannel.ID)
+		members, err := s.Get.GetUsersInChannel(id)
 		if err != nil {
 			return &serverError{err, "Unable to get memebers of the channel", http.StatusBadRequest}
 		}
 
 		var found bool
 		for _, m := range members {
-			if m.ID == currentUser.ID {
+			if m.ID == id {
 				found = true
 				break
 			}
@@ -323,7 +336,7 @@ func (s *server) OnlineUsers() errHandler {
 
 func (s *server) GetUsersInChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		channelID := r.URL.Query().Get("channel")
+		channelID := mux.Vars(r)["channel"]
 		users, err := s.Get.GetUsersInChannel(channelID)
 		if err != nil {
 			return &serverError{err, "Error getting users in the channel", http.StatusBadRequest}
@@ -336,7 +349,7 @@ func (s *server) GetUsersInChannel() errHandler {
 
 func (s *server) GetChannelsForUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := r.URL.Query().Get("user_id")
+		userID := mux.Vars(r)["user_id"]
 		channels, err := s.Get.GetChannelsForUser(userID)
 		if err != nil {
 			return &serverError{err, "Error getting channels for the user", http.StatusBadRequest}
@@ -349,7 +362,7 @@ func (s *server) GetChannelsForUser() errHandler {
 
 func (s *server) GetSidebarsForUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := r.URL.Query().Get("user_id")
+		userID := mux.Vars(r)["user_id"]
 		channels, err := s.Get.GetChannelsForUser(userID)
 		if err != nil {
 			return &serverError{err, "Error getting channels for the user", http.StatusBadRequest}
@@ -369,7 +382,7 @@ func (s *server) GetSidebarsForUser() errHandler {
 
 func (s *server) GetMessagesToUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := r.URL.Query().Get("to_user")
+		userID := mux.Vars(r)["to_user"]
 		messages, err := s.Get.GetMessagesToUser(userID)
 		if err != nil {
 			return &serverError{err, "Error getting messages to the user", http.StatusBadRequest}
@@ -382,7 +395,7 @@ func (s *server) GetMessagesToUser() errHandler {
 
 func (s *server) GetMessagesFromUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := r.URL.Query().Get("from_user")
+		userID := mux.Vars(r)["from_user"]
 		messages, err := s.Get.GetMessagesFromUser(userID)
 		if err != nil {
 			return &serverError{err, "Error getting messages from the user", http.StatusBadRequest}
@@ -395,7 +408,7 @@ func (s *server) GetMessagesFromUser() errHandler {
 
 func (s *server) GetMessagesInChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		channelID := r.URL.Query().Get("channel")
+		channelID := mux.Vars(r)["channel"]
 		messages, err := s.Get.GetMessagesInChannel(channelID)
 		if err != nil {
 			return &serverError{err, "Error getting messages in the channel", http.StatusBadRequest}
@@ -408,7 +421,7 @@ func (s *server) GetMessagesInChannel() errHandler {
 
 func (s *server) AddUserToChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := mux.Vars(r)["user"]
+		userID := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
 		channelID := mux.Vars(r)["channel"]
 		if err := s.Add.AddUserToChannel(userID, channelID); err != nil {
 			return &serverError{err, "Unable to add user to channel", http.StatusInternalServerError}
@@ -422,7 +435,7 @@ func (s *server) AddUserToChannel() errHandler {
 
 func (s *server) RemoveUserFromChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := mux.Vars(r)["user"]
+		userID := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
 		channelID := mux.Vars(r)["channel"]
 		if err := s.Add.RemoveUserFromChannel(userID, channelID); err != nil {
 			return &serverError{err, "Unable to remove user from channel", http.StatusInternalServerError}
@@ -557,8 +570,8 @@ func (s *server) CreateDirect() errHandler {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
+		fromID := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
 		toID := mux.Vars(r)["to_id"]
-		fromID := mux.Vars(r)["from_id"]
 		reqChannel.Direct = true
 		channel, err := s.Create.CreateChannel(&reqChannel)
 		if err != nil {
@@ -635,8 +648,6 @@ func (s *server) CreateUser() errHandler {
 		expiration := time.Now().Add(time.Minute * 15)
 		claims := &JWTToken{
 			UserID:        user.ID,
-			Email:         user.Email,
-			UserName:      user.DisplayName,
 			Authenticated: true,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: expiration.Unix(),
@@ -659,6 +670,25 @@ func (s *server) CreateUser() errHandler {
 		})
 
 		json.NewEncoder(w).Encode(user)
+		return nil
+	}
+}
+
+func (s *server) CreateMessage() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
+		var msg sidebar.ChatMessage
+		if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
+		}
+
+		uid := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
+		msg.FromUser = uid
+		send, err := s.Create.CreateMessage(&msg)
+		if err != nil {
+			return &serverError{err, "Unable to save message", http.StatusBadRequest}
+		}
+
+		s.hub.broadcast <- *send
 		return nil
 	}
 }
@@ -713,12 +743,8 @@ func (s *server) DeleteChannel() errHandler {
 
 func (s *server) DeleteUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		var reqID string
-		if err := json.NewDecoder(r.Body).Decode(&reqID); err != nil || reqID == "" {
-			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
-		}
-
-		user, err := s.Delete.DeleteUser(reqID)
+		uid := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
+		user, err := s.Delete.DeleteUser(uid)
 		if err != nil {
 			return &serverError{err, "Unable to delete user", http.StatusInternalServerError}
 		}
@@ -734,14 +760,6 @@ func (s *server) DeleteUser() errHandler {
 func (s *server) Login() errHandler {
 	gob.Register(sidebar.User{})
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		if os.Getenv("PORT") == "" {
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
-		} else {
-			w.Header().Set("Access-Control-Allow-Origin", "https://sidebar-frontend.now.sh")
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-
 		var auther AuthInfo
 		if err := json.NewDecoder(r.Body).Decode(&auther); err != nil {
 			return &serverError{err, "Ill-formatted login attempt", http.StatusBadRequest}
@@ -755,123 +773,46 @@ func (s *server) Login() errHandler {
 		expiration := time.Now().Add(time.Minute * 15)
 		claims := &JWTToken{
 			UserID:        user.ID,
-			Email:         user.Email,
-			UserName:      user.DisplayName,
 			Authenticated: true,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: expiration.Unix(),
 			},
 		}
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		tokenString, err := token.SignedString(key)
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(key)
 		if err != nil {
 			return &serverError{err, "Unable to sign token", http.StatusInternalServerError}
 		}
 
-		http.SetCookie(w, &http.Cookie{
-			Name:     "chat-cook",
-			Value:    tokenString,
-			Expires:  expiration,
-			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
-			Secure:   true,
+		json.NewEncoder(w).Encode(struct {
+			Token string
+			User  sidebar.User
+		}{
+			Token: token,
+			User:  *user,
 		})
-
-		json.NewEncoder(w).Encode(user)
 		return nil
 	}
 }
 
 func (s *server) RefreshToken() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		c, err := r.Cookie("chat-cook")
-		if err != nil {
-			return &serverError{err, "Error with cookie", http.StatusUnauthorized}
-		}
+		token := r.Context().Value("user").(*jwt.Token)
+		user := token.Claims.(jwt.MapClaims)
 
-		tokStr := c.Value
-		claims := &JWTToken{}
-		tkn, err := jwt.ParseWithClaims(tokStr, claims, func(token *jwt.Token) (interface{}, error) {
-			return key, nil
-		})
-
-		if err != nil {
-			return &serverError{err, "Error parsing JWT", http.StatusUnauthorized}
-		} else if !tkn.Valid {
-			return &serverError{err, "Error token is not valid", http.StatusUnauthorized}
-		}
-
-		// Check if user is authenticated
-		if !claims.Authenticated {
-			return &serverError{err, "Error user not authenticated", http.StatusUnauthorized}
-		}
-
-		if time.Unix(claims.ExpiresAt, 0).Sub(time.Now()) > 90*time.Second {
-			return &serverError{nil, "Not ready", http.StatusTooEarly}
+		if time.Unix(int64(user["exp"].(float64)), 0).Sub(time.Now()) > 90*time.Second {
+			return &serverError{errors.New("Token refresh too early"), "Not ready", http.StatusTooEarly}
 		}
 
 		expiration := time.Now().Add(15 * time.Minute)
-		claims.ExpiresAt = expiration.Unix()
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		tokenString, err := token.SignedString(key)
+		user["exp"] = expiration.Unix()
+		newToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, user).SignedString(key)
 		if err != nil {
 			return &serverError{err, "Error signing token", http.StatusInternalServerError}
 		}
 
-		http.SetCookie(w, &http.Cookie{
-			Name:     "chat-cook",
-			Value:    tokenString,
-			Expires:  expiration,
-			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
-			Secure:   true,
-		})
+		json.NewEncoder(w).Encode(struct{ Token string }{newToken})
 		return nil
 	}
-}
-
-// requireAuth provides an authentication middleware
-func (s *server) requireAuth(f http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c, err := r.Cookie("chat-cook")
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			logrus.Error("Error with cookie", err)
-			return
-		}
-
-		tokStr := c.Value
-		claims := &JWTToken{}
-		tkn, err := jwt.ParseWithClaims(tokStr, claims, func(token *jwt.Token) (interface{}, error) {
-			return key, nil
-		})
-
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			logrus.Error(err)
-			return
-		} else if !tkn.Valid {
-			w.WriteHeader(http.StatusUnauthorized)
-			logrus.Error(err)
-			return
-		}
-
-		// Check if user is authenticated
-		if !claims.Authenticated {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			logrus.Error(err)
-			return
-		}
-
-		user := sidebar.User{
-			ID:          claims.UserID,
-			Email:       claims.Email,
-			DisplayName: claims.UserName,
-		}
-
-		ctx := context.WithValue(r.Context(), ctxKey("user_info"), user)
-		f.ServeHTTP(w, r.WithContext(ctx))
-	})
 }
 
 // HandleWS provides a handler for getting Websocket connections setup
@@ -889,16 +830,19 @@ func (s *server) HandleWS() errHandler {
 			logrus.Fatalf("unable to upgrade connection %v", err)
 		}
 
-		user, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
-		if !ok {
-			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+
+		user, err := s.Get.GetUser(parsed["UserID"].(string))
+		if err != nil {
+			return &serverError{err, "Unable to get user", http.StatusBadRequest}
 		}
 
 		cl := &client{
 			conn: conn,
-			send: make(chan sidebar.WebSocketMessage),
+			send: make(chan sidebar.ChatMessage),
 			hub:  s.hub,
-			User: user,
+			User: *user,
 		}
 
 		s.hub.register <- cl

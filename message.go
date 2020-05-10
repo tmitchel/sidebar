@@ -7,9 +7,9 @@ const (
 	EventStartSpinOff = 3
 )
 
-// WebSocketMessage represents a message sent over
+// ChatMessage represents a message sent over
 // the Websocket connection.
-type WebSocketMessage struct {
+type ChatMessage struct {
 	ID       string `json:"id"`
 	Event    int64  `json:"event"`
 	Content  string `json:"content"`
