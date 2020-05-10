@@ -13,7 +13,7 @@ type Creater interface {
 	NewToken(string) (string, error)
 	CreateUser(*User, string) (*User, error)
 	CreateChannel(*Channel) (*Channel, error)
-	CreateMessage(*WebSocketMessage) (*WebSocketMessage, error)
+	CreateMessage(*ChatMessage) (*ChatMessage, error)
 }
 
 type Deleter interface {
@@ -30,18 +30,18 @@ type Adder interface {
 type Getter interface {
 	GetUser(string) (*User, error)
 	GetChannel(string) (*Channel, error)
-	GetMessage(string) (*WebSocketMessage, error)
+	GetMessage(string) (*ChatMessage, error)
 
 	GetUsers() ([]*User, error)
 	GetChannels() ([]*Channel, error)
-	GetMessages() ([]*WebSocketMessage, error)
+	GetMessages() ([]*ChatMessage, error)
 
 	GetUsersInChannel(string) ([]*User, error)
 	GetChannelsForUser(string) ([]*Channel, error)
 
-	GetMessagesInChannel(string) ([]*WebSocketMessage, error)
-	GetMessagesFromUser(string) ([]*WebSocketMessage, error)
-	GetMessagesToUser(string) ([]*WebSocketMessage, error)
+	GetMessagesInChannel(string) ([]*ChatMessage, error)
+	GetMessagesFromUser(string) ([]*ChatMessage, error)
+	GetMessagesToUser(string) ([]*ChatMessage, error)
 }
 
 type Updater interface {

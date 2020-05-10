@@ -44,7 +44,7 @@ type ChannelWithMemberInfo struct {
 type ChannelWithUsersAndMessages struct {
 	Channel           sidebar.Channel
 	UsersInChannel    []*sidebar.User
-	MessagesInChannel []*sidebar.WebSocketMessage
+	MessagesInChannel []*sidebar.ChatMessage
 }
 
 // PasswordUpdate is used to decode requests to update the

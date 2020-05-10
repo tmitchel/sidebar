@@ -676,7 +676,7 @@ func (s *server) CreateUser() errHandler {
 
 func (s *server) CreateMessage() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		var msg sidebar.WebSocketMessage
+		var msg sidebar.ChatMessage
 		if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
@@ -840,7 +840,7 @@ func (s *server) HandleWS() errHandler {
 
 		cl := &client{
 			conn: conn,
-			send: make(chan sidebar.WebSocketMessage),
+			send: make(chan sidebar.ChatMessage),
 			hub:  s.hub,
 			User: *user,
 		}

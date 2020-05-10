@@ -64,7 +64,7 @@ func (c *creater) CreateChannel(ch *sidebar.Channel) (*sidebar.Channel, error) {
 }
 
 // CreateMessage gives the message an id and stores in the database.
-func (c *creater) CreateMessage(m *sidebar.WebSocketMessage) (*sidebar.WebSocketMessage, error) {
+func (c *creater) CreateMessage(m *sidebar.ChatMessage) (*sidebar.ChatMessage, error) {
 	m.ID = uuid.New().String()
 	return c.DB.CreateMessage(m)
 }

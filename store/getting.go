@@ -13,18 +13,18 @@ import (
 type Getter interface {
 	GetUser(string) (*sidebar.User, error)
 	GetChannel(string) (*sidebar.Channel, error)
-	GetMessage(string) (*sidebar.WebSocketMessage, error)
+	GetMessage(string) (*sidebar.ChatMessage, error)
 
 	GetUsers() ([]*sidebar.User, error)
 	GetChannels() ([]*sidebar.Channel, error)
-	GetMessages() ([]*sidebar.WebSocketMessage, error)
+	GetMessages() ([]*sidebar.ChatMessage, error)
 
 	GetUsersInChannel(string) ([]*sidebar.User, error)
 	GetChannelsForUser(string) ([]*sidebar.Channel, error)
 
-	GetMessagesInChannel(string) ([]*sidebar.WebSocketMessage, error)
-	GetMessagesFromUser(string) ([]*sidebar.WebSocketMessage, error)
-	GetMessagesToUser(string) ([]*sidebar.WebSocketMessage, error)
+	GetMessagesInChannel(string) ([]*sidebar.ChatMessage, error)
+	GetMessagesFromUser(string) ([]*sidebar.ChatMessage, error)
+	GetMessagesToUser(string) ([]*sidebar.ChatMessage, error)
 }
 
 // GetUser returns the user with the given id.
@@ -114,8 +114,8 @@ func (d *database) GetChannel(id string) (*sidebar.Channel, error) {
 }
 
 // GetMessage returns the message with the given id.
-func (d *database) GetMessage(id string) (*sidebar.WebSocketMessage, error) {
-	var m sidebar.WebSocketMessage
+func (d *database) GetMessage(id string) (*sidebar.ChatMessage, error) {
+	var m sidebar.ChatMessage
 	err := psql.Select("ms.id", "ms.event", "ms.content", "cm.channel_id", "um.user_from_id", "um.user_to_id").From("messages as ms").
 		Join("channels_messages cm ON (cm.message_id = ms.id)").
 		Join("users_messages um ON ( um.message_id = ms.id )").
@@ -129,8 +129,8 @@ func (d *database) GetMessage(id string) (*sidebar.WebSocketMessage, error) {
 }
 
 // GetMessageInChannel returns all messages sent in the given channel.
-func (d *database) GetMessagesInChannel(id string) ([]*sidebar.WebSocketMessage, error) {
-	var messages []*sidebar.WebSocketMessage
+func (d *database) GetMessagesInChannel(id string) ([]*sidebar.ChatMessage, error) {
+	var messages []*sidebar.ChatMessage
 	rows, err := psql.Select("id", "content", "event", "cm.channel_id", "um.user_from_id", "um.user_to_id").From("messages").
 		Join("channels_messages cm ON ( cm.message_id = id )").
 		Join("users_messages um ON ( um.message_id = id )").
@@ -141,7 +141,7 @@ func (d *database) GetMessagesInChannel(id string) ([]*sidebar.WebSocketMessage,
 	}
 
 	for rows.Next() {
-		var m sidebar.WebSocketMessage
+		var m sidebar.ChatMessage
 		err := rows.Scan(&m.ID, &m.Content, &m.Event, &m.Channel, &m.FromUser, &m.ToUser)
 		if err != nil {
 			return nil, errors.New("Error scanning for message")
@@ -154,8 +154,8 @@ func (d *database) GetMessagesInChannel(id string) ([]*sidebar.WebSocketMessage,
 }
 
 // GetMessagesFromUser returns all messages sent by the given user.
-func (d *database) GetMessagesFromUser(id string) ([]*sidebar.WebSocketMessage, error) {
-	var messages []*sidebar.WebSocketMessage
+func (d *database) GetMessagesFromUser(id string) ([]*sidebar.ChatMessage, error) {
+	var messages []*sidebar.ChatMessage
 	rows, err := psql.Select("id", "content").From("messages").
 		Join("users_messages um ON ( um.message_id = id )").
 		Where(sq.Eq{"um.user_from_id": id}).
@@ -165,7 +165,7 @@ func (d *database) GetMessagesFromUser(id string) ([]*sidebar.WebSocketMessage, 
 	}
 
 	for rows.Next() {
-		var m sidebar.WebSocketMessage
+		var m sidebar.ChatMessage
 		err := rows.Scan(&m.ID, &m.Content)
 		if err != nil {
 			return nil, errors.New("Error scanning for message")
@@ -178,8 +178,8 @@ func (d *database) GetMessagesFromUser(id string) ([]*sidebar.WebSocketMessage, 
 }
 
 // GetMessagesToUser returns all messages sent to the given user.
-func (d *database) GetMessagesToUser(id string) ([]*sidebar.WebSocketMessage, error) {
-	var messages []*sidebar.WebSocketMessage
+func (d *database) GetMessagesToUser(id string) ([]*sidebar.ChatMessage, error) {
+	var messages []*sidebar.ChatMessage
 	rows, err := psql.Select("id", "content").From("messages").
 		Join("users_messages um ON ( um.message_id = id )").
 		Where(sq.Eq{"um.user_to_id": id}).
@@ -189,7 +189,7 @@ func (d *database) GetMessagesToUser(id string) ([]*sidebar.WebSocketMessage, er
 	}
 
 	for rows.Next() {
-		var m sidebar.WebSocketMessage
+		var m sidebar.ChatMessage
 		err := rows.Scan(&m.ID, &m.Content)
 		if err != nil {
 			return nil, errors.New("Error scanning for message")
@@ -253,8 +253,8 @@ func (d *database) GetChannels() ([]*sidebar.Channel, error) {
 }
 
 // GetMessages returns all messages saved in the database.
-func (d *database) GetMessages() ([]*sidebar.WebSocketMessage, error) {
-	var messages []*sidebar.WebSocketMessage
+func (d *database) GetMessages() ([]*sidebar.ChatMessage, error) {
+	var messages []*sidebar.ChatMessage
 	rows, err := psql.Select("ms.id", "ms.event", "ms.content", "um.user_to_id", "um.user_from_id", "cm.channel_id").
 		From("messages as ms").
 		Join("users_messages um ON (um.message_id = id)").
@@ -265,7 +265,7 @@ func (d *database) GetMessages() ([]*sidebar.WebSocketMessage, error) {
 	}
 
 	for rows.Next() {
-		var w sidebar.WebSocketMessage
+		var w sidebar.ChatMessage
 		err := rows.Scan(&w.ID, &w.Event, &w.Content, &w.ToUser, &w.FromUser, &w.Channel)
 		if err != nil {
 			return nil, errors.New("Error scanning messages")
