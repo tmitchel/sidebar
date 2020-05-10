@@ -110,7 +110,7 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 
 	apiRouter.Handle("/channel", s.CreateChannel()).Methods("POST")
 	apiRouter.Handle("/sidebar/{parent_id}/{user_id}", s.CreateSidebar()).Methods("POST")
-	apiRouter.Handle("/direct/{to_id}/{from_id}", s.CreateDirect()).Methods("POST")
+	apiRouter.Handle("/direct/{to_id}", s.CreateDirect()).Methods("POST")
 	apiRouter.Handle("/user/{create_token}", s.CreateUser()).Methods("POST")
 	apiRouter.Handle("/new_token", s.NewToken()).Methods("POST")
 	apiRouter.Handle("/resolve/{channel_id}", s.ResolveSidebar()).Methods("POST")
@@ -118,8 +118,8 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 	apiRouter.Handle("/update-userpass", s.UpdateUserPassword()).Methods("POST")
 	apiRouter.Handle("/update-channelinfo", s.UpdateChannelInfo()).Methods("POST")
 
-	apiRouter.Handle("/add/{user}/{channel}", s.AddUserToChannel()).Methods("POST")
-	apiRouter.Handle("/leave/{user}/{channel}", s.RemoveUserFromChannel()).Methods("DELETE")
+	apiRouter.Handle("/add/{channel}", s.AddUserToChannel()).Methods("POST")
+	apiRouter.Handle("/leave/{channel}", s.RemoveUserFromChannel()).Methods("DELETE")
 
 	apiRouter.Handle("/channel", s.DeleteChannel()).Methods("DELETE")
 	apiRouter.Handle("/user", s.DeleteUser()).Methods("DELETE")
@@ -163,20 +163,10 @@ func (s *server) UpdateUserPassword() errHandler {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
-		currentUser, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
-		if !ok {
-			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
-		}
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
 
-		if payload.ID != currentUser.ID {
-			return &serverError{
-				errors.Errorf("Request user doesn't match current user. Current: %v Request: %v", currentUser.ID, payload.ID),
-				"Request user doesn't match current user.",
-				http.StatusBadRequest,
-			}
-		}
-
-		err := s.Up.UpdateUserPassword(payload.ID, []byte(payload.OldPassword), []byte(payload.NewPassword))
+		err := s.Up.UpdateUserPassword(parsed["UserID"].(string), []byte(payload.OldPassword), []byte(payload.NewPassword))
 		if err != nil {
 			return &serverError{err, "Error updating user info", http.StatusBadRequest}
 		}
@@ -194,14 +184,12 @@ func (s *server) UpdateUserInfo() errHandler {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
-		currentUser, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
-		if !ok {
-			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
-		}
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
 
-		if reqUser.ID != currentUser.ID {
+		if reqUser.ID != parsed["UserID"].(string) {
 			return &serverError{
-				errors.Errorf("Request user doesn't match current user. Current: %v Request: %v", currentUser.ID, reqUser.ID),
+				errors.Errorf("Request user doesn't match current user. Current: %v Request: %v", parsed["UserID"].(string), reqUser.ID),
 				"Request user doesn't match current user.",
 				http.StatusBadRequest,
 			}
@@ -229,19 +217,18 @@ func (s *server) UpdateChannelInfo() errHandler {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
-		currentUser, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
-		if !ok {
-			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
-		}
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		id := parsed["UserID"].(string)
 
-		members, err := s.Get.GetUsersInChannel(reqChannel.ID)
+		members, err := s.Get.GetUsersInChannel(id)
 		if err != nil {
 			return &serverError{err, "Unable to get memebers of the channel", http.StatusBadRequest}
 		}
 
 		var found bool
 		for _, m := range members {
-			if m.ID == currentUser.ID {
+			if m.ID == id {
 				found = true
 				break
 			}
@@ -431,7 +418,7 @@ func (s *server) GetMessagesInChannel() errHandler {
 
 func (s *server) AddUserToChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := mux.Vars(r)["user"]
+		userID := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
 		channelID := mux.Vars(r)["channel"]
 		if err := s.Add.AddUserToChannel(userID, channelID); err != nil {
 			return &serverError{err, "Unable to add user to channel", http.StatusInternalServerError}
@@ -445,7 +432,7 @@ func (s *server) AddUserToChannel() errHandler {
 
 func (s *server) RemoveUserFromChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := mux.Vars(r)["user"]
+		userID := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
 		channelID := mux.Vars(r)["channel"]
 		if err := s.Add.RemoveUserFromChannel(userID, channelID); err != nil {
 			return &serverError{err, "Unable to remove user from channel", http.StatusInternalServerError}
@@ -580,8 +567,8 @@ func (s *server) CreateDirect() errHandler {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
+		fromID := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
 		toID := mux.Vars(r)["to_id"]
-		fromID := mux.Vars(r)["from_id"]
 		reqChannel.Direct = true
 		channel, err := s.Create.CreateChannel(&reqChannel)
 		if err != nil {
@@ -734,12 +721,8 @@ func (s *server) DeleteChannel() errHandler {
 
 func (s *server) DeleteUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		var reqID string
-		if err := json.NewDecoder(r.Body).Decode(&reqID); err != nil || reqID == "" {
-			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
-		}
-
-		user, err := s.Delete.DeleteUser(reqID)
+		uid := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
+		user, err := s.Delete.DeleteUser(uid)
 		if err != nil {
 			return &serverError{err, "Unable to delete user", http.StatusInternalServerError}
 		}

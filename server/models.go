@@ -50,7 +50,6 @@ type ChannelWithUsersAndMessages struct {
 // PasswordUpdate is used to decode requests to update the
 // user's password.
 type PasswordUpdate struct {
-	ID          string
 	OldPassword string `json:"old_password"`
 	NewPassword string `json:"new_password"`
 }
