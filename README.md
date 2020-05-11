@@ -12,6 +12,7 @@ As an example, imagine a team working remotely on separate parts of a project an
 The frontend is built with VueJS [here](https://github.com/tmitchel/sidebar-frontend). Contributions are greatly appreciated.
 
 ## To-Do
+- [ ] TESTS!
 - [ ] Allow users to deploy their own instance
 - [ ] Add workspaces like Slack
 - [ ] Add private channels
