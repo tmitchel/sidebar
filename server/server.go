@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -37,10 +36,11 @@ func (fn errHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var key []byte
+var refreshKey, accessKey []byte
 
 func init() {
-	key = []byte("TheKey2")
+	accessKey = []byte("TheKey2")
+	refreshKey = []byte("TheKey3")
 }
 
 type server struct {
@@ -75,7 +75,7 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 
 	jwtMiddleware := jwtmiddleware.New(jwtmiddleware.Options{
 		ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
-			return []byte("TheKey2"), nil
+			return accessKey, nil
 		},
 		Extractor:     jwtmiddleware.FromFirst(jwtmiddleware.FromAuthHeader, jwtmiddleware.FromParameter("auth_code")),
 		SigningMethod: jwt.SigningMethodHS256,
@@ -128,11 +128,11 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 	apiRouter.Handle("/user", s.DeleteUser()).Methods("DELETE")
 
 	apiRouter.Handle("/online_users", s.OnlineUsers()).Methods("GET")
-	apiRouter.Handle("/refresh_token", s.RefreshToken()).Methods("POST")
 	apiRouter.Handle("/ws", s.HandleWS())
 
 	// unprotected
 	router.Handle("/login", s.Login()).Methods("POST")
+	router.Handle("/refresh_token", s.RefreshToken()).Methods("POST")
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "views/home.html")
 	}).Methods("GET")
@@ -148,7 +148,8 @@ func (s *server) Serve() http.Handler {
 	n := negroni.Classic()
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:8081", "https://sidebar-frontend.now.sh"},
-		AllowedHeaders:   []string{"Origin", "Content-Type", "Authorization"},
+		AllowedHeaders:   []string{"Origin", "Content-Type", "Authorization", "Set-Cookie"},
+		ExposedHeaders:   []string{"set-cookie"},
 		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodDelete},
 		AllowCredentials: true,
 	})
@@ -175,6 +176,7 @@ func (s *server) UpdateUserPassword() errHandler {
 		}
 
 		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprintf(w, "Success")
 		return nil
 	}
@@ -208,6 +210,7 @@ func (s *server) UpdateUserInfo() errHandler {
 			return &serverError{err, "Error getting updated user", http.StatusBadRequest}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(newUser)
 		return nil
 	}
@@ -251,6 +254,7 @@ func (s *server) UpdateChannelInfo() errHandler {
 			return &serverError{err, "Error getting updated channel", http.StatusBadRequest}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(newChannel)
 		return nil
 	}
@@ -274,6 +278,7 @@ func (s *server) LoadChannel() errHandler {
 			return &serverError{err, "Unable to get messages for channel", http.StatusInternalServerError}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(ChannelWithUsersAndMessages{
 			Channel:           *channel,
 			UsersInChannel:    users,
@@ -314,6 +319,7 @@ func (s *server) LoadUser() errHandler {
 			channelWithInfo[i] = &ChannelWithMemberInfo{Channel: *c, Member: matched}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(UserWithChannels{
 			User:     *user,
 			Channels: channelWithInfo,
@@ -329,6 +335,7 @@ func (s *server) OnlineUsers() errHandler {
 			users = append(users, u.User)
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(users)
 		return nil
 	}
@@ -342,6 +349,7 @@ func (s *server) GetUsersInChannel() errHandler {
 			return &serverError{err, "Error getting users in the channel", http.StatusBadRequest}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(users)
 		return nil
 	}
@@ -355,6 +363,7 @@ func (s *server) GetChannelsForUser() errHandler {
 			return &serverError{err, "Error getting channels for the user", http.StatusBadRequest}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(channels)
 		return nil
 	}
@@ -375,6 +384,7 @@ func (s *server) GetSidebarsForUser() errHandler {
 			}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(sidebars)
 		return nil
 	}
@@ -388,6 +398,7 @@ func (s *server) GetMessagesToUser() errHandler {
 			return &serverError{err, "Error getting messages to the user", http.StatusBadRequest}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(messages)
 		return nil
 	}
@@ -401,6 +412,7 @@ func (s *server) GetMessagesFromUser() errHandler {
 			return &serverError{err, "Error getting messages from the user", http.StatusBadRequest}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(messages)
 		return nil
 	}
@@ -414,6 +426,7 @@ func (s *server) GetMessagesInChannel() errHandler {
 			return &serverError{err, "Error getting messages in the channel", http.StatusBadRequest}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(messages)
 		return nil
 	}
@@ -428,6 +441,7 @@ func (s *server) AddUserToChannel() errHandler {
 		}
 
 		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprintf(w, "Successfully added user %v to channel %v", userID, channelID)
 		return nil
 	}
@@ -442,6 +456,7 @@ func (s *server) RemoveUserFromChannel() errHandler {
 		}
 
 		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprintf(w, "Successfully removed user %v from channel %v", userID, channelID)
 		return nil
 	}
@@ -455,6 +470,7 @@ func (s *server) GetUser() errHandler {
 			return &serverError{err, "Unable to get user id from request param", http.StatusInternalServerError}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(user)
 		return nil
 	}
@@ -468,6 +484,7 @@ func (s *server) GetChannel() errHandler {
 			return &serverError{err, "Unable to get channel id from request param", http.StatusInternalServerError}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(channel)
 		return nil
 	}
@@ -481,6 +498,7 @@ func (s *server) GetMessage() errHandler {
 			return &serverError{err, "Unable to get message id from request param", http.StatusInternalServerError}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(message)
 		return nil
 	}
@@ -498,6 +516,7 @@ func (s *server) GetUsers() errHandler {
 			u = append(u, *us)
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(users)
 		return nil
 	}
@@ -510,6 +529,7 @@ func (s *server) GetChannels() errHandler {
 			return &serverError{err, "Unable to get channels", http.StatusInternalServerError}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(channels)
 		return nil
 	}
@@ -529,6 +549,7 @@ func (s *server) GetSidebars() errHandler {
 			}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(sidebars)
 		return nil
 	}
@@ -541,6 +562,7 @@ func (s *server) GetMessages() errHandler {
 			return &serverError{err, "Unable to get messages", http.StatusInternalServerError}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(messages)
 		return nil
 	}
@@ -558,6 +580,7 @@ func (s *server) CreateChannel() errHandler {
 			return &serverError{err, "Unable to create channel", http.StatusInternalServerError}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(channel)
 		return nil
 	}
@@ -588,6 +611,7 @@ func (s *server) CreateDirect() errHandler {
 			return &serverError{err, "Unable to add 'from' user to channel", http.StatusInternalServerError}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(channel)
 		return nil
 	}
@@ -620,6 +644,7 @@ func (s *server) CreateSidebar() errHandler {
 			}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(channel)
 		return nil
 	}
@@ -655,21 +680,38 @@ func (s *server) CreateUser() errHandler {
 		}
 
 		userToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		tokenString, err := userToken.SignedString(key)
+		tokenString, err := userToken.SignedString(accessKey)
 		if err != nil {
 			return &serverError{err, "Unable to sign token", http.StatusInternalServerError}
 		}
 
+		// create refresh token
+		refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"exp":    time.Now().Add(time.Hour * 100).Unix(),
+			"UserID": user.ID,
+		}).SignedString(refreshKey)
+		if err != nil {
+			return &serverError{err, "Unable to sign refresh token", http.StatusInternalServerError}
+		}
+
+		// set refresh token in HTTP only cookie
 		http.SetCookie(w, &http.Cookie{
-			Name:     "chat-cook",
-			Value:    tokenString,
-			Expires:  expiration,
+			Name:     "sb_refresh_token",
+			Value:    refreshToken,
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
 			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
 		})
 
-		json.NewEncoder(w).Encode(user)
+		// send access token to client
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(struct {
+			Token string
+			User  sidebar.User
+		}{
+			Token: tokenString,
+			User:  *user,
+		})
 		return nil
 	}
 }
@@ -709,6 +751,7 @@ func (s *server) NewToken() errHandler {
 			return &serverError{err, "Error creating token", http.StatusInternalServerError}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(struct{ Token string }{token})
 		return nil
 	}
@@ -723,6 +766,7 @@ func (s *server) ResolveSidebar() errHandler {
 		}
 
 		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprintf(w, "Success")
 		return nil
 	}
@@ -740,6 +784,7 @@ func (s *server) DeleteChannel() errHandler {
 			return &serverError{err, "Unable to delete channel", http.StatusInternalServerError}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(channel)
 		return nil
 	}
@@ -753,6 +798,7 @@ func (s *server) DeleteUser() errHandler {
 			return &serverError{err, "Unable to delete user", http.StatusInternalServerError}
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(user)
 		return nil
 	}
@@ -762,7 +808,6 @@ func (s *server) DeleteUser() errHandler {
 // log in. The user is authenticated and then a cookie is stored with
 // information for later.
 func (s *server) Login() errHandler {
-	gob.Register(sidebar.User{})
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		var auther AuthInfo
 		if err := json.NewDecoder(r.Body).Decode(&auther); err != nil {
@@ -774,7 +819,8 @@ func (s *server) Login() errHandler {
 			return &serverError{err, "Incorrect username/password", http.StatusForbidden}
 		}
 
-		expiration := time.Now().Add(time.Minute * 15)
+		// create access token
+		expiration := time.Now().Add(time.Minute * 10)
 		claims := &JWTToken{
 			UserID:        user.ID,
 			Authenticated: true,
@@ -782,11 +828,30 @@ func (s *server) Login() errHandler {
 				ExpiresAt: expiration.Unix(),
 			},
 		}
-		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(key)
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(accessKey)
 		if err != nil {
-			return &serverError{err, "Unable to sign token", http.StatusInternalServerError}
+			return &serverError{err, "Unable to sign access token", http.StatusInternalServerError}
 		}
 
+		// create refresh token
+		refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"UserID": user.ID,
+		}).SignedString(refreshKey)
+		if err != nil {
+			return &serverError{err, "Unable to sign refresh token", http.StatusInternalServerError}
+		}
+
+		// set refresh token in HTTP only cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:     "sb_refresh_token",
+			Value:    refreshToken,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
+		})
+
+		// send access token to client
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(struct {
 			Token string
 			User  sidebar.User
@@ -798,23 +863,44 @@ func (s *server) Login() errHandler {
 	}
 }
 
+// RefreshToken reads a refresh token from the HTTP only cookie.
+// The token is used to create a new, short-lived access token.
 func (s *server) RefreshToken() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		token := r.Context().Value("user").(*jwt.Token)
-		user := token.Claims.(jwt.MapClaims)
-
-		if time.Unix(int64(user["exp"].(float64)), 0).Sub(time.Now()) > 90*time.Second {
-			return &serverError{errors.New("Token refresh too early"), "Not ready", http.StatusTooEarly}
-		}
-
-		expiration := time.Now().Add(15 * time.Minute)
-		user["exp"] = expiration.Unix()
-		newToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, user).SignedString(key)
+		cookie, err := r.Cookie("sb_refresh_token")
 		if err != nil {
-			return &serverError{err, "Error signing token", http.StatusInternalServerError}
+			return &serverError{err, "Unable to get refresh_token cookie", http.StatusUnauthorized}
 		}
 
-		json.NewEncoder(w).Encode(struct{ Token string }{newToken})
+		// parse JWT from cookie
+		refreshTokenString := cookie.Value
+		refreshToken, err := jwt.Parse(refreshTokenString, func(token *jwt.Token) (interface{}, error) {
+			return refreshKey, nil
+		})
+		if err != nil {
+			return &serverError{err, "Unable to parse refresh token", http.StatusUnauthorized}
+		}
+
+		if !refreshToken.Valid {
+			return &serverError{errors.New("Refresh token not valid"), "Error with refresh token", http.StatusUnauthorized}
+		}
+
+		// create new access token
+		expiration := time.Now().Add(time.Minute * 10)
+		claims := &JWTToken{
+			UserID:        refreshToken.Claims.(jwt.MapClaims)["UserID"].(string),
+			Authenticated: true,
+			StandardClaims: jwt.StandardClaims{
+				ExpiresAt: expiration.Unix(),
+			},
+		}
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(accessKey)
+		if err != nil {
+			return &serverError{err, "Unable to sign access token", http.StatusInternalServerError}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(struct{ Token string }{token})
 		return nil
 	}
 }
