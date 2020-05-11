@@ -62,7 +62,7 @@ type server struct {
 // handling Websocket connections is also started in a goroutine.
 // These things are wrapped in the server and returned.
 func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sidebar.Deleter, add sidebar.Adder, get sidebar.Getter, up sidebar.Updater) *server {
-	hub := newChathub(create)
+	hub := newChathub()
 
 	s := &server{
 		hub:    hub,

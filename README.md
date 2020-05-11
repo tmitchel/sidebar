@@ -1,7 +1,7 @@
 # ![Sidebar Logo](https://github.com/tmitchel/sidebar/raw/master/public/sidebar_simple_logo.png)
 [![<tmitchel>](https://circleci.com/gh/tmitchel/sidebar.svg?style=shield)](https://app.circleci.com/pipelines/github/tmitchel/sidebar) [![Go Report Card](https://goreportcard.com/badge/github.com/tmitchel/sidebar)](https://goreportcard.com/report/github.com/tmitchel/sidebar) ![license](https://img.shields.io/badge/license-MIT-green) 
 
-An open source Slack alternative with an emphasis on handling brief, tangentially related discussions that arise and discrupt the overall narrative of a conversation.
+An open source Slack alternative with an emphasis on handling brief, tangentially related discussions that arise and disrupt the overall narrative of a conversation.
 
 Sidebar is designed to keep communication organized in the situation where there are multiple people working on different parts of the same project. Sidebar provides a way to handle short questions/comments that arise in a discussion without allowing them to derail the entire conversation. Simply create a sidebar channel based on the message you are responding to, continue the brief converstaion there, and then mark the channel "Resolved" when the conversation is over. This way both conversations can carry on independently and all users can check the resolution of the sidebar on it is marked "Resolved".
 
