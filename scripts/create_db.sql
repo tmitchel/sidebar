@@ -5,6 +5,7 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     profile_image TEXT NOT NULL,
+    user_role INT NOT NULL DEFAULT 1,
     PRIMARY KEY(id)
 );
 
