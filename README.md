@@ -16,11 +16,11 @@ As an example, imagine a team working remotely on separate parts of a project an
 - [ ] Make @ functional
 - [ ] Add roles for users
 
-### Contributing
+## Contributing
 
 Contributions are _greatly_ appreciated. Feel free to create and issue or submit a pull request. There are very likely a plethora of issues that need addressing.
 
-### Installation
+## Installation
 ```
 git clone git@github.com:tmitchel/sidebar.git
 ```
@@ -35,7 +35,7 @@ Compile and run
 go build -o sidebar -v cmd/chat/main.go && ./sidebar
 ```
 
-### Credits
+## Credits
 
 Garrett Dyson - logo - [Garrett Dyson Desgin](https://garrettdysondesign.com/)
 
