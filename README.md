@@ -7,7 +7,11 @@ Sidebar is designed to keep communication organized in the situation where there
 
 As an example, imagine a team working remotely on separate parts of a project and you are the project lead. You may call for the current status of all team members in the group's main channel. As the responses begin pouring in, you have a question about a team members report. Rather than sending your questions in the main channel where your discussion will get mixed in with the reports from all other members, you create a sidebar as a child of the message with this member's status. Now you can ask your questions in a dedicated channel focused on this member's status. Once all of your questions are answered, you mark the sidebar "Resolved". At the end of the day, you have a main channel with the call for status followed by the reports from each team member. You also have a sidebar channel where you (and any other user) can see the more detailed discussion centered on this member's status.
 
-### To-Do
+## Frontend
+
+The frontend is built with VueJS [here](https://github.com/tmitchel/sidebar-frontend). Contributions are greatly appreciated.
+
+## To-Do
 - [ ] Allow users to deploy their own instance
 - [ ] Add workspaces like Slack
 - [ ] Add private channels
