@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware"
@@ -39,8 +40,8 @@ func (fn errHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 var refreshKey, accessKey []byte
 
 func init() {
-	accessKey = []byte("TheKey2")
-	refreshKey = []byte("TheKey3")
+	accessKey = []byte(os.Getenv("ACCESS_KEY"))
+	refreshKey = []byte(os.Getenv("REFRESH_KEY"))
 }
 
 type server struct {
