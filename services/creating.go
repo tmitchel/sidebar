@@ -38,6 +38,10 @@ func (c *creater) NewToken(userID string) (string, error) {
 // and they are given a default profile image if they didn't provide one. The
 // user is stored in the database.
 func (c *creater) CreateUser(u *sidebar.User, token string) (*sidebar.User, error) {
+	if u.DisplayName == "" || u.Email == "" || len(u.Password) == 0 {
+		return nil, errors.New("Invalid fields when trying to create user")
+	}
+
 	u.ID = uuid.New().String()
 
 	hashed, err := bcrypt.GenerateFromPassword(u.Password, bcrypt.DefaultCost)
@@ -56,6 +60,10 @@ func (c *creater) CreateUser(u *sidebar.User, token string) (*sidebar.User, erro
 // gives it an id and a default image if one isn't provided. The channel is
 // saved.
 func (c *creater) CreateChannel(ch *sidebar.Channel) (*sidebar.Channel, error) {
+	if ch.Name == "" {
+		return nil, errors.New("Invalid fields when trying to create channel")
+	}
+
 	ch.ID = uuid.New().String()
 	if ch.Image == "" {
 		ch.Image = "https://randomuser.me/api/portraits/women/81.jpg"

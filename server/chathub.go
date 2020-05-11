@@ -12,7 +12,7 @@ type Storage interface {
 
 type chathub struct {
 	clients    map[*client]bool
-	broadcast  chan sidebar.ChatMessage
+	broadcast  chan sidebar.WebsocketMessage
 	register   chan *client
 	unregister chan *client
 	db         Storage
@@ -23,7 +23,7 @@ type chathub struct {
 func newChathub(s Storage) *chathub {
 	return &chathub{
 		clients:    make(map[*client]bool),
-		broadcast:  make(chan sidebar.ChatMessage),
+		broadcast:  make(chan sidebar.WebsocketMessage),
 		register:   make(chan *client),
 		unregister: make(chan *client),
 		db:         s,
