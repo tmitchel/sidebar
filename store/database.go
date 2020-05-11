@@ -2,9 +2,11 @@ package store
 
 import (
 	"database/sql"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 
 	_ "github.com/lib/pq" // postgres drivers
 )
@@ -33,18 +35,22 @@ type database struct {
 // New connects to the postgres database
 // and returns that connection.
 func New(psqlInfo string) (Database, error) {
-	db, err := sql.Open("postgres", psqlInfo)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error opening database")
-	}
+	for {
+		db, err := sql.Open("postgres", psqlInfo)
+		if err != nil {
+			return nil, errors.Wrap(err, "Error opening database")
+		}
 
-	// make sure we have a good connection
-	err = db.Ping()
-	if err != nil {
-		return nil, errors.Wrap(err, "Error pinging database")
+		// make sure we have a good connection
+		err = db.Ping()
+		if err != nil {
+			time.Sleep(time.Second)
+			logrus.Errorf("Error pinging database %v", err)
+		} else {
+			logrus.Info("Connected to database.")
+			return &database{db}, nil
+		}
 	}
-
-	return &database{db}, nil
 }
 
 // Close closes the database.

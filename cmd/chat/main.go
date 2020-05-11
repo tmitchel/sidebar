@@ -27,7 +27,7 @@ func main() {
 	if os.Getenv("PRODDY") == "true" {
 		dbConn = os.Getenv("DATABASE_URL")
 	} else {
-		dbConn = fmt.Sprintf("host=localhost port=5432 user=%s "+
+		dbConn = fmt.Sprintf("host=db port=5432 user=%s "+
 			"password=%s dbname=%s sslmode=disable",
 			os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"), os.Getenv("POSTGRES_DB"))
 	}

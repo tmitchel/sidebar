@@ -30,14 +30,9 @@ Contributions are _greatly_ appreciated. Feel free to create and issue or submit
 git clone git@github.com:tmitchel/sidebar.git
 ```
 
-Start docker container with Postgres database
+Start detached docker containers with Postgres, Adminer, and Sidebar
 ```
-docker-compose -f scripts/create_db.sql up -d
-```
-
-Compile and run
-```
-go build -o sidebar -v cmd/chat/main.go && ./sidebar
+docker-compose up -d
 ```
 
 ## Credits
