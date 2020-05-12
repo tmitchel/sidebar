@@ -28,6 +28,9 @@ type Adder interface {
 }
 
 type Getter interface {
+	GetWorkspacesForUser(string) ([]*Workspace, error)
+	GetWorkspaces() ([]*Workspace, error)
+
 	GetUser(string) (*User, error)
 	GetChannel(string) (*Channel, error)
 	GetMessage(string) (*ChatMessage, error)

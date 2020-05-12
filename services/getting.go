@@ -18,6 +18,14 @@ func NewGetter(db store.Database) (sidebar.Getter, error) {
 	}, nil
 }
 
+func (g *getter) GetWorkspacesForUser(uid string) ([]*sidebar.Workspace, error) {
+	return g.DB.GetWorkspacesForUser(uid)
+}
+
+func (g *getter) GetWorkspaces() ([]*sidebar.Workspace, error) {
+	return g.DB.GetWorkspaces()
+}
+
 // GetUser returns the user with the given id.
 func (g *getter) GetUser(id string) (*sidebar.User, error) {
 	return g.DB.GetUser(id)

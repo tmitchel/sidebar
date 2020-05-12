@@ -11,6 +11,8 @@ import (
 // Getter provides methods for retrieiving different sets of
 // data from the database.
 type Getter interface {
+	GetWorkspacesForUser(string) ([]*sidebar.Workspace, error)
+	GetWorkspaces() ([]*sidebar.Workspace, error)
 	GetWorkspace(string) (*sidebar.Workspace, error)
 	GetWorkspaceToken(string) (string, error)
 	GetWorkspaceExists(string) error
@@ -28,6 +30,43 @@ type Getter interface {
 	GetMessagesInChannel(string) ([]*sidebar.ChatMessage, error)
 	GetMessagesFromUser(string) ([]*sidebar.ChatMessage, error)
 	GetMessagesToUser(string) ([]*sidebar.ChatMessage, error)
+}
+
+func (d *database) GetWorkspaces() ([]*sidebar.Workspace, error) {
+	rows, err := psql.Select("display_name", "id").From("workspaces").RunWith(d).Query()
+	if err != nil {
+		return nil, err
+	}
+
+	var ws []*sidebar.Workspace
+	for rows.Next() {
+		var w sidebar.Workspace
+		err := rows.Scan(&w.DisplayName, &w.ID)
+		if err != nil {
+			continue
+		}
+		ws = append(ws, &w)
+	}
+	return ws, nil
+}
+
+func (d *database) GetWorkspacesForUser(uid string) ([]*sidebar.Workspace, error) {
+	rows, err := psql.Select("display_name", "id").From("workspaces").Join("workspaces_users wu ON ( wu.workspace_id = id )").
+		Where(sq.Eq{"wu.user_id": uid}).RunWith(d).Query()
+	if err != nil {
+		return nil, err
+	}
+
+	var ws []*sidebar.Workspace
+	for rows.Next() {
+		var w sidebar.Workspace
+		err := rows.Scan(&w.DisplayName, &w.ID)
+		if err != nil {
+			continue
+		}
+		ws = append(ws, &w)
+	}
+	return ws, nil
 }
 
 func (d *database) GetWorkspace(id string) (*sidebar.Workspace, error) {
