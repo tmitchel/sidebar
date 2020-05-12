@@ -1,27 +1,20 @@
 package store
 
 import (
-	sq "github.com/Masterminds/squirrel"
-	"github.com/pkg/errors"
 	"github.com/tmitchel/sidebar"
 )
 
 // Creater ...
 type Creater interface {
-	NewToken(string, string) error
-	CreateUser(*sidebar.User, string) (*sidebar.User, error)
+	CreateUser(*sidebar.User) (*sidebar.User, error)
+	CreateWorkspace(*sidebar.Workspace) (*sidebar.Workspace, error)
+	CreateDefaultWorkspace(*sidebar.Workspace) (*sidebar.Workspace, error)
 	CreateChannel(*sidebar.Channel) (*sidebar.Channel, error)
 	CreateMessage(*sidebar.ChatMessage) (*sidebar.ChatMessage, error)
 }
 
-func (d *database) NewToken(token string, userID string) error {
-	_, err := psql.Insert("tokens").
-		Columns("token", "creater_id").
-		Values(token, userID).
-		RunWith(d).Exec()
-	return err
-}
-
+// CreateUserNoToken is used to create a default user when the app starts
+// and no token is available.
 func CreateUserNoToken(d Database, u *sidebar.User) (*sidebar.User, error) {
 	_, err := psql.Insert("users").
 		Columns("id", "display_name", "email", "password", "profile_image").
@@ -47,20 +40,8 @@ func createUser(d Database, u *sidebar.User) (*sidebar.User, error) {
 	return u, nil
 }
 
-func (d *database) CreateUser(u *sidebar.User, token string) (*sidebar.User, error) {
-	var valid bool
-	err := psql.Select("valid").
-		From("tokens").Where(sq.Eq{"token": token}).
-		RunWith(d).QueryRow().Scan(&valid)
-	if err != nil {
-		return nil, err
-	}
-
-	if !valid {
-		return nil, errors.New("Token is no longer valid")
-	}
-
-	_, err = psql.Insert("users").
+func (d *database) CreateUser(u *sidebar.User) (*sidebar.User, error) {
+	_, err := psql.Insert("users").
 		Columns("id", "display_name", "email", "password", "profile_image").
 		Values(u.ID, u.DisplayName, u.Email, u.Password, u.ProfileImg).
 		RunWith(d).Exec()
@@ -68,15 +49,31 @@ func (d *database) CreateUser(u *sidebar.User, token string) (*sidebar.User, err
 		return nil, err
 	}
 
-	_, err = psql.Update("tokens").
-		Set("valid", false).Set("new_user_id", u.ID).
-		Where(sq.Eq{"token": token}).
+	return u, nil
+}
+
+func (d *database) CreateWorkspace(w *sidebar.Workspace) (*sidebar.Workspace, error) {
+	_, err := psql.Insert("workspaces").
+		Columns("id", "display_name", "display_image", "token", "default_ws").
+		Values(w.ID, w.DisplayName, w.DisplayImg, w.Token, false).
 		RunWith(d).Exec()
 	if err != nil {
 		return nil, err
 	}
 
-	return u, nil
+	return w, nil
+}
+
+func (d *database) CreateDefaultWorkspace(w *sidebar.Workspace) (*sidebar.Workspace, error) {
+	_, err := psql.Insert("workspaces").
+		Columns("id", "display_name", "display_image", "token", "default_ws").
+		Values(w.ID, w.DisplayName, w.DisplayImg, w.Token, true).
+		RunWith(d).Exec()
+	if err != nil {
+		return nil, err
+	}
+
+	return w, nil
 }
 
 func (d *database) CreateChannel(c *sidebar.Channel) (*sidebar.Channel, error) {

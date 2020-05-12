@@ -14,7 +14,7 @@ The frontend is built with VueJS [here](https://github.com/tmitchel/sidebar-fron
 ## To-Do
 - [ ] TESTS!
 - [ ] Allow users to deploy their own instance
-- [ ] Add workspaces like Slack
+- [x] Add workspaces like Slack
 - [ ] Add private channels
 - [ ] File upload
 - [ ] Better alerts (including mute)

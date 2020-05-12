@@ -112,10 +112,7 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 	apiRouter.Handle("/channel", s.CreateChannel()).Methods("POST")
 	apiRouter.Handle("/sidebar/{parent_id}/{user_id}", s.CreateSidebar()).Methods("POST")
 	apiRouter.Handle("/direct/{to_id}", s.CreateDirect()).Methods("POST")
-	apiRouter.Handle("/user/{create_token}", s.CreateUser()).Methods("POST")
 	apiRouter.Handle("/message", s.CreateMessage()).Methods("POST")
-
-	apiRouter.Handle("/new_token", s.NewToken()).Methods("POST")
 
 	apiRouter.Handle("/update-userinfo", s.UpdateUserInfo()).Methods("POST")
 	apiRouter.Handle("/update-userpass", s.UpdateUserPassword()).Methods("POST")
@@ -132,6 +129,8 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 	apiRouter.Handle("/ws", s.HandleWS())
 
 	// unprotected
+	router.Handle("/workspaces", s.GetWorkspaces()).Methods("GET")
+	router.Handle("/user", s.CreateUser()).Methods("POST")
 	router.Handle("/login", s.Login()).Methods("POST")
 	router.Handle("/refresh_token", s.RefreshToken()).Methods("POST")
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -159,6 +158,19 @@ func (s *server) Serve() http.Handler {
 	n.Use(c)
 	n.UseHandler(s.router)
 	return n
+}
+
+func (s *server) GetWorkspaces() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
+		ws, err := s.Get.GetWorkspaces()
+		if err != nil {
+			return &serverError{err, "Unable to get workspaces", http.StatusInternalServerError}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ws)
+		return nil
+	}
 }
 
 func (s *server) UpdateUserPassword() errHandler {
@@ -227,8 +239,9 @@ func (s *server) UpdateChannelInfo() errHandler {
 		token := r.Context().Value("user").(*jwt.Token)
 		parsed := token.Claims.(jwt.MapClaims)
 		id := parsed["UserID"].(string)
+		wid := parsed["WorkspaceID"].(string)
 
-		members, err := s.Get.GetUsersInChannel(id)
+		members, err := s.Get.GetUsersInChannel(reqChannel.ID, wid)
 		if err != nil {
 			return &serverError{err, "Unable to get memebers of the channel", http.StatusBadRequest}
 		}
@@ -269,12 +282,16 @@ func (s *server) LoadChannel() errHandler {
 			return &serverError{err, "Unable to get channel id from request param", http.StatusInternalServerError}
 		}
 
-		users, err := s.Get.GetUsers()
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		users, err := s.Get.GetUsers(wid)
 		if err != nil {
 			return &serverError{err, "Unable to get users for channel", http.StatusInternalServerError}
 		}
 
-		messages, err := s.Get.GetMessagesInChannel(reqID)
+		messages, err := s.Get.GetMessagesInChannel(reqID, wid)
 		if err != nil {
 			return &serverError{err, "Unable to get messages for channel", http.StatusInternalServerError}
 		}
@@ -297,12 +314,16 @@ func (s *server) LoadUser() errHandler {
 			return &serverError{err, "Unable to get user id from request param", http.StatusInternalServerError}
 		}
 
-		allChannels, err := s.Get.GetChannels()
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		allChannels, err := s.Get.GetChannels(wid)
 		if err != nil {
 			return &serverError{err, "Unable to get all channels", http.StatusInternalServerError}
 		}
 
-		channelsForUser, err := s.Get.GetChannelsForUser(reqID)
+		channelsForUser, err := s.Get.GetChannelsForUser(reqID, wid)
 		if err != nil {
 			return &serverError{err, "Unable to get channels for user", http.StatusInternalServerError}
 		}
@@ -345,7 +366,11 @@ func (s *server) OnlineUsers() errHandler {
 func (s *server) GetUsersInChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		channelID := mux.Vars(r)["channel"]
-		users, err := s.Get.GetUsersInChannel(channelID)
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		users, err := s.Get.GetUsersInChannel(channelID, wid)
 		if err != nil {
 			return &serverError{err, "Error getting users in the channel", http.StatusBadRequest}
 		}
@@ -359,7 +384,11 @@ func (s *server) GetUsersInChannel() errHandler {
 func (s *server) GetChannelsForUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		userID := mux.Vars(r)["user_id"]
-		channels, err := s.Get.GetChannelsForUser(userID)
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		channels, err := s.Get.GetChannelsForUser(userID, wid)
 		if err != nil {
 			return &serverError{err, "Error getting channels for the user", http.StatusBadRequest}
 		}
@@ -373,7 +402,11 @@ func (s *server) GetChannelsForUser() errHandler {
 func (s *server) GetSidebarsForUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		userID := mux.Vars(r)["user_id"]
-		channels, err := s.Get.GetChannelsForUser(userID)
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		channels, err := s.Get.GetChannelsForUser(userID, wid)
 		if err != nil {
 			return &serverError{err, "Error getting channels for the user", http.StatusBadRequest}
 		}
@@ -394,7 +427,11 @@ func (s *server) GetSidebarsForUser() errHandler {
 func (s *server) GetMessagesToUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		userID := mux.Vars(r)["to_user"]
-		messages, err := s.Get.GetMessagesToUser(userID)
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		messages, err := s.Get.GetMessagesToUser(userID, wid)
 		if err != nil {
 			return &serverError{err, "Error getting messages to the user", http.StatusBadRequest}
 		}
@@ -408,7 +445,11 @@ func (s *server) GetMessagesToUser() errHandler {
 func (s *server) GetMessagesFromUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		userID := mux.Vars(r)["from_user"]
-		messages, err := s.Get.GetMessagesFromUser(userID)
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		messages, err := s.Get.GetMessagesFromUser(userID, wid)
 		if err != nil {
 			return &serverError{err, "Error getting messages from the user", http.StatusBadRequest}
 		}
@@ -422,7 +463,11 @@ func (s *server) GetMessagesFromUser() errHandler {
 func (s *server) GetMessagesInChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		channelID := mux.Vars(r)["channel"]
-		messages, err := s.Get.GetMessagesInChannel(channelID)
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		messages, err := s.Get.GetMessagesInChannel(channelID, wid)
 		if err != nil {
 			return &serverError{err, "Error getting messages in the channel", http.StatusBadRequest}
 		}
@@ -435,9 +480,13 @@ func (s *server) GetMessagesInChannel() errHandler {
 
 func (s *server) AddUserToChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
 		channelID := mux.Vars(r)["channel"]
-		if err := s.Add.AddUserToChannel(userID, channelID); err != nil {
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		userID := parsed["UserID"].(string)
+		wid := parsed["WorkspaceID"].(string)
+
+		if err := s.Add.AddUserToChannel(userID, channelID, wid); err != nil {
 			return &serverError{err, "Unable to add user to channel", http.StatusInternalServerError}
 		}
 
@@ -450,9 +499,13 @@ func (s *server) AddUserToChannel() errHandler {
 
 func (s *server) RemoveUserFromChannel() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		userID := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
 		channelID := mux.Vars(r)["channel"]
-		if err := s.Add.RemoveUserFromChannel(userID, channelID); err != nil {
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		userID := parsed["UserID"].(string)
+		wid := parsed["WorkspaceID"].(string)
+
+		if err := s.Add.RemoveUserFromChannel(userID, channelID, wid); err != nil {
 			return &serverError{err, "Unable to remove user from channel", http.StatusInternalServerError}
 		}
 
@@ -507,7 +560,11 @@ func (s *server) GetMessage() errHandler {
 
 func (s *server) GetUsers() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		users, err := s.Get.GetUsers()
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		users, err := s.Get.GetUsers(wid)
 		if err != nil {
 			return &serverError{err, "Unable to get users", http.StatusInternalServerError}
 		}
@@ -525,7 +582,11 @@ func (s *server) GetUsers() errHandler {
 
 func (s *server) GetChannels() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		channels, err := s.Get.GetChannels()
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		channels, err := s.Get.GetChannels(wid)
 		if err != nil {
 			return &serverError{err, "Unable to get channels", http.StatusInternalServerError}
 		}
@@ -538,7 +599,11 @@ func (s *server) GetChannels() errHandler {
 
 func (s *server) GetSidebars() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		channels, err := s.Get.GetChannels()
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		channels, err := s.Get.GetChannels(wid)
 		if err != nil {
 			return &serverError{err, "Unable to get sidebars", http.StatusInternalServerError}
 		}
@@ -558,7 +623,11 @@ func (s *server) GetSidebars() errHandler {
 
 func (s *server) GetMessages() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		messages, err := s.Get.GetMessages()
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		messages, err := s.Get.GetMessages(wid)
 		if err != nil {
 			return &serverError{err, "Unable to get messages", http.StatusInternalServerError}
 		}
@@ -576,7 +645,13 @@ func (s *server) CreateChannel() errHandler {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
-		channel, err := s.Create.CreateChannel(&reqChannel)
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		logrus.Infof("%+v\n%+v", reqChannel, parsed)
+
+		channel, err := s.Create.CreateChannel(&reqChannel, wid)
 		if err != nil {
 			return &serverError{err, "Unable to create channel", http.StatusInternalServerError}
 		}
@@ -594,20 +669,24 @@ func (s *server) CreateDirect() errHandler {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
-		fromID := r.Context().Value("user").(*jwt.Token).Claims.(jwt.MapClaims)["UserID"].(string)
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+		fromID := parsed["UserID"].(string)
 		toID := mux.Vars(r)["to_id"]
+
 		reqChannel.Direct = true
-		channel, err := s.Create.CreateChannel(&reqChannel)
+		channel, err := s.Create.CreateChannel(&reqChannel, wid)
 		if err != nil {
 			return &serverError{err, "Unable to create direct channel", http.StatusInternalServerError}
 		}
 
-		err = s.Add.AddUserToChannel(toID, channel.ID)
+		err = s.Add.AddUserToChannel(toID, channel.ID, wid)
 		if err != nil {
 			return &serverError{err, "Unable to add 'to' user to channel", http.StatusInternalServerError}
 		}
 
-		err = s.Add.AddUserToChannel(fromID, channel.ID)
+		err = s.Add.AddUserToChannel(fromID, channel.ID, wid)
 		if err != nil {
 			return &serverError{err, "Unable to add 'from' user to channel", http.StatusInternalServerError}
 		}
@@ -625,21 +704,25 @@ func (s *server) CreateSidebar() errHandler {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
 		}
 
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
 		reqChannel.IsSidebar = true
 		reqChannel.Parent = mux.Vars(r)["parent_id"]
 
-		channel, err := s.Create.CreateChannel(&reqChannel)
+		channel, err := s.Create.CreateChannel(&reqChannel, wid)
 		if err != nil {
 			return &serverError{err, "Unable to create sidebar", http.StatusInternalServerError}
 		}
 
-		members, err := s.Get.GetUsersInChannel(reqChannel.Parent)
+		members, err := s.Get.GetUsersInChannel(reqChannel.Parent, wid)
 		if err != nil {
 			return &serverError{err, "Unable to get users from parent channel", http.StatusInternalServerError}
 		}
 
 		for _, member := range members {
-			err = s.Add.AddUserToChannel(member.ID, channel.ID)
+			err = s.Add.AddUserToChannel(member.ID, channel.ID, wid)
 			if err != nil {
 				return &serverError{err, "Unable to add user to sidebar", http.StatusInternalServerError}
 			}
@@ -653,7 +736,6 @@ func (s *server) CreateSidebar() errHandler {
 
 func (s *server) CreateUser() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		token := mux.Vars(r)["create_token"]
 		var reqUser SignupUser
 		if err := json.NewDecoder(r.Body).Decode(&reqUser); err != nil {
 			return &serverError{err, "Unable to decode payload", http.StatusBadRequest}
@@ -666,7 +748,7 @@ func (s *server) CreateUser() errHandler {
 			Password:    []byte(reqUser.Password),
 			ProfileImg:  reqUser.ProfileImg,
 		}
-		user, err := s.Create.CreateUser(&converted, token)
+		user, err := s.Create.CreateUser(&converted)
 		if err != nil {
 			return &serverError{err, "Unable to create user", http.StatusInternalServerError}
 		}
@@ -674,6 +756,7 @@ func (s *server) CreateUser() errHandler {
 		expiration := time.Now().Add(time.Minute * 15)
 		claims := &JWTToken{
 			UserID:        user.ID,
+			WorkspaceID:   os.Getenv("DEFAULT_TOKEN"),
 			Authenticated: true,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: expiration.Unix(),
@@ -740,28 +823,14 @@ func (s *server) CreateMessage() errHandler {
 	}
 }
 
-func (s *server) NewToken() errHandler {
-	return func(w http.ResponseWriter, r *http.Request) *serverError {
-		user, ok := r.Context().Value(ctxKey("user_info")).(sidebar.User)
-		if !ok {
-			return &serverError{errors.New("Unable to decode user info from context"), "Unable to decode current user", http.StatusBadRequest}
-		}
-
-		token, err := s.Create.NewToken(user.ID)
-		if err != nil {
-			return &serverError{err, "Error creating token", http.StatusInternalServerError}
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(struct{ Token string }{token})
-		return nil
-	}
-}
-
 func (s *server) ResolveSidebar() errHandler {
 	return func(w http.ResponseWriter, r *http.Request) *serverError {
 		sid := mux.Vars(r)["channel_id"]
-		err := s.Add.ResolveChannel(sid)
+		token := r.Context().Value("user").(*jwt.Token)
+		parsed := token.Claims.(jwt.MapClaims)
+		wid := parsed["WorkspaceID"].(string)
+
+		err := s.Add.ResolveChannel(sid, wid)
 		if err != nil {
 			return &serverError{err, "Unable to resolve channel", http.StatusInternalServerError}
 		}
@@ -815,15 +884,16 @@ func (s *server) Login() errHandler {
 			return &serverError{err, "Ill-formatted login attempt", http.StatusBadRequest}
 		}
 
-		user, err := s.Auth.Validate(auther.Email, auther.Password)
+		user, err := s.Auth.Validate(auther.Email, auther.Password, auther.Workspace)
 		if err != nil || user == nil {
-			return &serverError{err, "Incorrect username/password", http.StatusForbidden}
+			return &serverError{err, "Incorrect username/password for this workspace", http.StatusForbidden}
 		}
 
 		// create access token
 		expiration := time.Now().Add(time.Minute * 10)
 		claims := &JWTToken{
 			UserID:        user.ID,
+			WorkspaceID:   auther.Workspace,
 			Authenticated: true,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: expiration.Unix(),
@@ -890,6 +960,7 @@ func (s *server) RefreshToken() errHandler {
 		expiration := time.Now().Add(time.Minute * 10)
 		claims := &JWTToken{
 			UserID:        refreshToken.Claims.(jwt.MapClaims)["UserID"].(string),
+			WorkspaceID:   refreshToken.Claims.(jwt.MapClaims)["WorkspaceID"].(string),
 			Authenticated: true,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: expiration.Unix(),

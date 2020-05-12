@@ -11,6 +11,12 @@ import (
 // Getter provides methods for retrieiving different sets of
 // data from the database.
 type Getter interface {
+	GetWorkspacesForUser(string) ([]*sidebar.Workspace, error)
+	GetWorkspaces() ([]*sidebar.Workspace, error)
+	GetWorkspace(string) (*sidebar.Workspace, error)
+	GetDefaultWorkspace() (*sidebar.Workspace, error)
+	GetWorkspaceToken(string) (string, error)
+	GetWorkspaceExists(string) error
 	GetUser(string) (*sidebar.User, error)
 	GetChannel(string) (*sidebar.Channel, error)
 	GetMessage(string) (*sidebar.ChatMessage, error)
@@ -25,6 +31,92 @@ type Getter interface {
 	GetMessagesInChannel(string) ([]*sidebar.ChatMessage, error)
 	GetMessagesFromUser(string) ([]*sidebar.ChatMessage, error)
 	GetMessagesToUser(string) ([]*sidebar.ChatMessage, error)
+}
+
+func (d *database) GetWorkspaces() ([]*sidebar.Workspace, error) {
+	rows, err := psql.Select("display_name", "id").From("workspaces").RunWith(d).Query()
+	if err != nil {
+		return nil, err
+	}
+
+	var ws []*sidebar.Workspace
+	for rows.Next() {
+		var w sidebar.Workspace
+		err := rows.Scan(&w.DisplayName, &w.ID)
+		if err != nil {
+			continue
+		}
+		ws = append(ws, &w)
+	}
+	return ws, nil
+}
+
+func (d *database) GetWorkspacesForUser(uid string) ([]*sidebar.Workspace, error) {
+	rows, err := psql.Select("display_name", "id").From("workspaces").Join("workspaces_users wu ON ( wu.workspace_id = id )").
+		Where(sq.Eq{"wu.user_id": uid}).RunWith(d).Query()
+	if err != nil {
+		return nil, err
+	}
+
+	var ws []*sidebar.Workspace
+	for rows.Next() {
+		var w sidebar.Workspace
+		err := rows.Scan(&w.DisplayName, &w.ID)
+		if err != nil {
+			continue
+		}
+		ws = append(ws, &w)
+	}
+	return ws, nil
+}
+
+func (d *database) GetWorkspace(id string) (*sidebar.Workspace, error) {
+	var w sidebar.Workspace
+	err := psql.Select("id", "display_name", "display_image", "token").
+		From("workspaces").Where(sq.Eq{"id": id}).RunWith(d).QueryRow().
+		Scan(&w.ID, &w.DisplayName, &w.DisplayImg, &w.Token)
+	if err != nil {
+		return nil, err
+	}
+	return &w, err
+}
+
+func (d *database) GetDefaultWorkspace() (*sidebar.Workspace, error) {
+	var w sidebar.Workspace
+	err := psql.Select("id", "display_name", "display_image", "token").
+		From("workspaces").Where(sq.Eq{"default_ws": true}).RunWith(d).QueryRow().
+		Scan(&w.ID, &w.DisplayName, &w.DisplayImg, &w.Token)
+	if err != nil {
+		return nil, err
+	}
+	return &w, err
+}
+
+func (d *database) GetWorkspaceToken(id string) (string, error) {
+	var token string
+	err := psql.Select("token").
+		From("workspaces").Where(sq.Eq{"id": id}).RunWith(d).QueryRow().
+		Scan(&token)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+func (d *database) GetWorkspaceExists(wid string) error {
+	var id string
+	err := psql.Select("id").From("workspaces").Where(sq.Eq{"id": wid}).
+		RunWith(d).QueryRow().
+		Scan(&id)
+	if err != nil {
+		return err
+	}
+
+	if id != wid {
+		return errors.Errorf("Unable to locate workspace %v", wid)
+	}
+
+	return nil
 }
 
 // GetUser returns the user with the given id.

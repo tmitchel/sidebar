@@ -23,6 +23,7 @@ type Database interface {
 	Updater
 	Authenticater
 	sq.BaseRunner
+	Empty() error
 
 	Close()
 }
@@ -51,6 +52,21 @@ func New(psqlInfo string) (Database, error) {
 			return &database{db}, nil
 		}
 	}
+}
+
+// Empty checks if the database has any workspaces
+func (d *database) Empty() error {
+	rows, err := psql.Select("id").
+		From("workspaces").RunWith(d).Query()
+	if err != nil {
+		return err
+	}
+
+	if !rows.Next() {
+		return errors.New("No workspaces exist")
+	}
+
+	return nil
 }
 
 // Close closes the database.

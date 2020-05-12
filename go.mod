@@ -15,7 +15,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rs/cors v1.7.0
 	github.com/sirupsen/logrus v1.4.2
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.4.0 // indirect
 	github.com/urfave/negroni v1.0.0
 	golang.org/x/crypto v0.0.0-20200221231518-2aa609cf4a9d
 	golang.org/x/sys v0.0.0-20200122134326-e047566fdf82 // indirect
