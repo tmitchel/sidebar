@@ -22,7 +22,7 @@ func NewAuthenticater(db store.Database) (sidebar.Authenticater, error) {
 
 // Validate gets the requested user from the database, checks the given password,
 // then returns the full user if the password is correct.
-func (a *auth) Validate(email, password string) (*sidebar.User, error) {
+func (a *auth) Validate(email, password, wid string) (*sidebar.User, error) {
 	authUser, err := a.DB.UserForAuth(email)
 	if err != nil {
 		return nil, err
@@ -32,5 +32,14 @@ func (a *auth) Validate(email, password string) (*sidebar.User, error) {
 		return nil, errors.Wrap(err, "Incorrect password")
 	}
 
-	return a.DB.GetUser(authUser.ID)
+	user, err := a.DB.GetUser(authUser.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := a.DB.UserInWorkspace(user.ID, wid); err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }

@@ -1,6 +1,8 @@
 package store
 
-import sq "github.com/Masterminds/squirrel"
+import (
+	sq "github.com/Masterminds/squirrel"
+)
 
 // Adder provides methods for updating an existing channel. "Adder"
 // probably isn't the right name anymore.
@@ -8,6 +10,8 @@ type Adder interface {
 	AddUserToChannel(string, string) error
 	RemoveUserFromChannel(string, string) error
 	ResolveChannel(string) error
+	AddUserToWorkspace(string, string) error
+	AddChannelToWorkspace(string, string) error
 }
 
 // AddUserToChannel takes a user id and channel id then adds that pair to
@@ -34,6 +38,22 @@ func (d *database) ResolveChannel(channelID string) error {
 	_, err := psql.Update("channels").
 		Set("resolved", !c.Resolved).
 		Where(sq.Eq{"id": channelID}).
+		RunWith(d).Exec()
+	return err
+}
+
+// AddUserToWorkspace adds a user to the given workspace.
+func (d *database) AddUserToWorkspace(uid, wid string) error {
+	_, err := psql.Insert("workspaces_users").
+		Columns("workspace_id", "user_id").Values(wid, uid).
+		RunWith(d).Exec()
+	return err
+}
+
+// AddChannelToWorkspace adds a channel to the given workspace.
+func (d *database) AddChannelToWorkspace(cid, wid string) error {
+	_, err := psql.Insert("workspaces_channels").
+		Columns("workspace_id", "channel_id").Values(wid, cid).
 		RunWith(d).Exec()
 	return err
 }

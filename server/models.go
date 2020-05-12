@@ -19,6 +19,7 @@ type SignupUser struct {
 // on the client side.
 type JWTToken struct {
 	UserID        string
+	WorkspaceID   string
 	Authenticated bool
 	jwt.StandardClaims
 }
@@ -56,6 +57,7 @@ type PasswordUpdate struct {
 
 // AuthInfo is used to decode requests to log in.
 type AuthInfo struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email     string `json:"email"`
+	Password  string `json:"password"`
+	Workspace string `json:"workspace"`
 }

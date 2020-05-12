@@ -2,6 +2,7 @@ package store
 
 import (
 	sq "github.com/Masterminds/squirrel"
+	"github.com/pkg/errors"
 	"github.com/tmitchel/sidebar"
 )
 
@@ -9,6 +10,8 @@ import (
 // from the database.
 type Authenticater interface {
 	UserForAuth(string) (*sidebar.User, error)
+	UserInWorkspace(string, string) error
+	ChannelInWorkspace(string, string) error
 }
 
 // UserForAuth takes a user email, queries the database for that user,
@@ -23,4 +26,38 @@ func (d *database) UserForAuth(email string) (*sidebar.User, error) {
 	}
 
 	return &authUser, nil
+}
+
+// UserInWorkspace returns an error if the user isn't a part
+// of the provided workspace.
+func (d *database) UserInWorkspace(uid, wid string) error {
+	var id string
+	err := psql.Select("user_id").From("workspaces_users").Where(sq.Eq{"workspace_id": wid}).Where(sq.Eq{"user_id": uid}).
+		RunWith(d).QueryRow().Scan(&id)
+	if err != nil {
+		return err
+	}
+
+	if id != uid {
+		return errors.Errorf("User %v not found", id)
+	}
+
+	return nil
+}
+
+// ChannelInWorkspace returns an error if the channel isn't a member
+// of the workspace.
+func (d *database) ChannelInWorkspace(cid, wid string) error {
+	var id string
+	err := psql.Select("channel_id").From("workspaces_users").Where(sq.Eq{"workspace_id": wid}).Where(sq.Eq{"channel_id": cid}).
+		RunWith(d).QueryRow().Scan(&id)
+	if err != nil {
+		return err
+	}
+
+	if id != cid {
+		return errors.Errorf("User %v not found", id)
+	}
+
+	return nil
 }

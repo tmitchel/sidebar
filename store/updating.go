@@ -7,9 +7,20 @@ import (
 
 // Updater provides methods for updating rows stored in teh database.
 type Updater interface {
+	UpdateWorkspaceImage(string, string) error
 	UpdateUserInformation(*sidebar.User) error
 	UpdateChannelInformation(*sidebar.Channel) error
 	UpdateUserPassword(string, []byte) error
+}
+
+// UpdateWorkspaceImage updates the image associated with the given
+// workspace.
+func (d *database) UpdateWorkspaceImage(id, img string) error {
+	_, err := psql.Update("workspaces").
+		Set("display_image", img).
+		Where(sq.Eq{"id": id}).
+		RunWith(d).Exec()
+	return err
 }
 
 // UpdateUserInformation updates all information for the user EXCEPT

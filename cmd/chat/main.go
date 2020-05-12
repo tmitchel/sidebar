@@ -12,7 +12,6 @@ import (
 	"github.com/tmitchel/sidebar/server"
 	"github.com/tmitchel/sidebar/services"
 	"github.com/tmitchel/sidebar/store"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -70,21 +69,12 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	// if the database is empty, create a default user
-	if u, err := get.GetUsers(); err != nil {
-		logrus.Fatal("Can't query for users on start")
-	} else if len(u) == 0 {
-		logrus.Info("creating initial user")
-		hashed, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("DEFAULT_PASSWORD")), bcrypt.DefaultCost)
-		if err != nil {
-			logrus.Fatal("Error hashing password")
-		}
-		logrus.Info("Creating default user")
-		store.CreateUserNoToken(db, &sidebar.User{
+	// if the database is empty, create a default workspace
+	if err := db.Empty(); err != nil {
+		db.CreateWorkspace(&sidebar.Workspace{
 			ID:          uuid.New().String(),
 			DisplayName: os.Getenv("DEFAULT_DISPLAYNAME"),
-			Email:       os.Getenv("DEFAULT_EMAIL"),
-			Password:    hashed,
+			Token:       os.Getenv("DEFAULT_TOKEN"),
 		})
 	}
 

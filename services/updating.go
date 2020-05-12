@@ -20,6 +20,7 @@ func NewUpdater(db store.Database) (sidebar.Updater, error) {
 	}, nil
 }
 
+// UpdateUserInfo updates things like the display_image.
 func (u *updater) UpdateUserInfo(user *sidebar.User) error {
 	return u.DB.UpdateUserInformation(user)
 }
@@ -44,6 +45,7 @@ func (u *updater) UpdateUserPassword(id string, newPassword, oldPassword []byte)
 	return u.DB.UpdateUserPassword(id, hashed)
 }
 
+// UpdateChannelInfo updates things like the display_image.
 func (u *updater) UpdateChannelInfo(channel *sidebar.Channel) error {
 	return u.DB.UpdateChannelInformation(channel)
 }
