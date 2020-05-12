@@ -753,10 +753,15 @@ func (s *server) CreateUser() errHandler {
 			return &serverError{err, "Unable to create user", http.StatusInternalServerError}
 		}
 
+		ws, err := s.Get.GetDefaultWorkspace()
+		if err != nil {
+			return &serverError{err, "Unable to get default workspace", http.StatusInternalServerError}
+		}
+
 		expiration := time.Now().Add(time.Minute * 15)
 		claims := &JWTToken{
 			UserID:        user.ID,
-			WorkspaceID:   os.Getenv("DEFAULT_TOKEN"),
+			WorkspaceID:   ws.ID,
 			Authenticated: true,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: expiration.Unix(),

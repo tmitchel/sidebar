@@ -27,6 +27,10 @@ func (g *getter) GetWorkspaces() ([]*sidebar.Workspace, error) {
 	return g.DB.GetWorkspaces()
 }
 
+func (g *getter) GetDefaultWorkspace() (*sidebar.Workspace, error) {
+	return g.DB.GetDefaultWorkspace()
+}
+
 // GetUser returns the user with the given id.
 func (g *getter) GetUser(id string) (*sidebar.User, error) {
 	return g.DB.GetUser(id)
