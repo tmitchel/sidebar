@@ -14,6 +14,7 @@ type Getter interface {
 	GetWorkspacesForUser(string) ([]*sidebar.Workspace, error)
 	GetWorkspaces() ([]*sidebar.Workspace, error)
 	GetWorkspace(string) (*sidebar.Workspace, error)
+	GetDefaultWorkspace() (*sidebar.Workspace, error)
 	GetWorkspaceToken(string) (string, error)
 	GetWorkspaceExists(string) error
 	GetUser(string) (*sidebar.User, error)
@@ -73,6 +74,17 @@ func (d *database) GetWorkspace(id string) (*sidebar.Workspace, error) {
 	var w sidebar.Workspace
 	err := psql.Select("id", "display_name", "display_image", "token").
 		From("workspaces").Where(sq.Eq{"id": id}).RunWith(d).QueryRow().
+		Scan(&w.ID, &w.DisplayName, &w.DisplayImg, &w.Token)
+	if err != nil {
+		return nil, err
+	}
+	return &w, err
+}
+
+func (d *database) GetDefaultWorkspace() (*sidebar.Workspace, error) {
+	var w sidebar.Workspace
+	err := psql.Select("id", "display_name", "display_image", "token").
+		From("workspaces").Where(sq.Eq{"default_ws": true}).RunWith(d).QueryRow().
 		Scan(&w.ID, &w.DisplayName, &w.DisplayImg, &w.Token)
 	if err != nil {
 		return nil, err

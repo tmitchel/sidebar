@@ -112,7 +112,6 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 	apiRouter.Handle("/channel", s.CreateChannel()).Methods("POST")
 	apiRouter.Handle("/sidebar/{parent_id}/{user_id}", s.CreateSidebar()).Methods("POST")
 	apiRouter.Handle("/direct/{to_id}", s.CreateDirect()).Methods("POST")
-	apiRouter.Handle("/user/{create_token}", s.CreateUser()).Methods("POST")
 	apiRouter.Handle("/message", s.CreateMessage()).Methods("POST")
 
 	apiRouter.Handle("/update-userinfo", s.UpdateUserInfo()).Methods("POST")
@@ -131,6 +130,7 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 
 	// unprotected
 	router.Handle("/workspaces", s.GetWorkspaces()).Methods("GET")
+	router.Handle("/user", s.CreateUser()).Methods("POST")
 	router.Handle("/login", s.Login()).Methods("POST")
 	router.Handle("/refresh_token", s.RefreshToken()).Methods("POST")
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +241,7 @@ func (s *server) UpdateChannelInfo() errHandler {
 		id := parsed["UserID"].(string)
 		wid := parsed["WorkspaceID"].(string)
 
-		members, err := s.Get.GetUsersInChannel(id, wid)
+		members, err := s.Get.GetUsersInChannel(reqChannel.ID, wid)
 		if err != nil {
 			return &serverError{err, "Unable to get memebers of the channel", http.StatusBadRequest}
 		}
@@ -649,6 +649,8 @@ func (s *server) CreateChannel() errHandler {
 		parsed := token.Claims.(jwt.MapClaims)
 		wid := parsed["WorkspaceID"].(string)
 
+		logrus.Infof("%+v\n%+v", reqChannel, parsed)
+
 		channel, err := s.Create.CreateChannel(&reqChannel, wid)
 		if err != nil {
 			return &serverError{err, "Unable to create channel", http.StatusInternalServerError}
@@ -754,6 +756,7 @@ func (s *server) CreateUser() errHandler {
 		expiration := time.Now().Add(time.Minute * 15)
 		claims := &JWTToken{
 			UserID:        user.ID,
+			WorkspaceID:   os.Getenv("DEFAULT_TOKEN"),
 			Authenticated: true,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: expiration.Unix(),

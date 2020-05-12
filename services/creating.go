@@ -53,7 +53,22 @@ func (c *creater) CreateUser(u *sidebar.User) (*sidebar.User, error) {
 	if u.ProfileImg == "" {
 		u.ProfileImg = "https://randomuser.me/api/portraits/women/81.jpg"
 	}
-	return c.DB.CreateUser(u)
+
+	ws, err := c.DB.GetDefaultWorkspace()
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := c.DB.CreateUser(u)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := c.DB.AddUserToWorkspace(u.ID, ws.ID); err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }
 
 // CreateChannel takes the information sent for creating a new channel,
@@ -74,12 +89,17 @@ func (c *creater) CreateChannel(ch *sidebar.Channel, wid string) (*sidebar.Chann
 		return nil, err
 	}
 
+	channel, err := c.DB.CreateChannel(ch)
+	if err != nil {
+		return nil, err
+	}
+
 	// add channel to the workspace
 	if err := c.DB.AddChannelToWorkspace(ch.ID, wid); err != nil {
 		return nil, err
 	}
 
-	return c.DB.CreateChannel(ch)
+	return channel, nil
 }
 
 // CreateMessage gives the message an id and stores in the database.

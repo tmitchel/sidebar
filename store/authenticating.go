@@ -49,7 +49,7 @@ func (d *database) UserInWorkspace(uid, wid string) error {
 // of the workspace.
 func (d *database) ChannelInWorkspace(cid, wid string) error {
 	var id string
-	err := psql.Select("channel_id").From("workspaces_users").Where(sq.Eq{"workspace_id": wid}).Where(sq.Eq{"channel_id": cid}).
+	err := psql.Select("channel_id").From("workspaces_channels").Where(sq.Eq{"workspace_id": wid}).Where(sq.Eq{"channel_id": cid}).
 		RunWith(d).QueryRow().Scan(&id)
 	if err != nil {
 		return err

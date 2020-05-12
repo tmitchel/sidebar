@@ -1,6 +1,7 @@
 package services
 
 import (
+	"github.com/pkg/errors"
 	"github.com/tmitchel/sidebar"
 	"github.com/tmitchel/sidebar/store"
 )
@@ -99,7 +100,7 @@ func (g *getter) GetMessages(wid string) ([]*sidebar.ChatMessage, error) {
 // they are a member, so we don't need to check each individual user.
 func (g *getter) GetUsersInChannel(id, wid string) ([]*sidebar.User, error) {
 	if err := g.DB.ChannelInWorkspace(id, wid); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Error getting channels in workspace")
 	}
 
 	return g.DB.GetUsersInChannel(id)

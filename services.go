@@ -25,6 +25,7 @@ type Adder interface {
 	ResolveChannel(string, string) error
 	AddUserToChannel(string, string, string) error
 	RemoveUserFromChannel(string, string, string) error
+	AddUserToWorkspace(string, string, string) error
 }
 
 type Getter interface {

@@ -4,6 +4,7 @@ CREATE TABLE workspaces (
     token VARCHAR(36) UNIQUE NOT NULL,
     display_name VARCHAR(255) UNIQUE NOT NULL,
     display_image TEXT NOT NULL,
+    default_ws BOOLEAN DEFAULT FALSE,
     PRIMARY KEY(id)
 );
 

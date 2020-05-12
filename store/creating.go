@@ -8,6 +8,7 @@ import (
 type Creater interface {
 	CreateUser(*sidebar.User) (*sidebar.User, error)
 	CreateWorkspace(*sidebar.Workspace) (*sidebar.Workspace, error)
+	CreateDefaultWorkspace(*sidebar.Workspace) (*sidebar.Workspace, error)
 	CreateChannel(*sidebar.Channel) (*sidebar.Channel, error)
 	CreateMessage(*sidebar.ChatMessage) (*sidebar.ChatMessage, error)
 }
@@ -53,8 +54,20 @@ func (d *database) CreateUser(u *sidebar.User) (*sidebar.User, error) {
 
 func (d *database) CreateWorkspace(w *sidebar.Workspace) (*sidebar.Workspace, error) {
 	_, err := psql.Insert("workspaces").
-		Columns("id", "display_name", "display_image", "token").
-		Values(w.ID, w.DisplayName, w.DisplayImg, w.Token).
+		Columns("id", "display_name", "display_image", "token", "default_ws").
+		Values(w.ID, w.DisplayName, w.DisplayImg, w.Token, false).
+		RunWith(d).Exec()
+	if err != nil {
+		return nil, err
+	}
+
+	return w, nil
+}
+
+func (d *database) CreateDefaultWorkspace(w *sidebar.Workspace) (*sidebar.Workspace, error) {
+	_, err := psql.Insert("workspaces").
+		Columns("id", "display_name", "display_image", "token", "default_ws").
+		Values(w.ID, w.DisplayName, w.DisplayImg, w.Token, true).
 		RunWith(d).Exec()
 	if err != nil {
 		return nil, err

@@ -71,7 +71,7 @@ func main() {
 
 	// if the database is empty, create a default workspace
 	if err := db.Empty(); err != nil {
-		db.CreateWorkspace(&sidebar.Workspace{
+		db.CreateDefaultWorkspace(&sidebar.Workspace{
 			ID:          uuid.New().String(),
 			DisplayName: os.Getenv("DEFAULT_DISPLAYNAME"),
 			Token:       os.Getenv("DEFAULT_TOKEN"),
