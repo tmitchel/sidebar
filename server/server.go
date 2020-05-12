@@ -763,8 +763,7 @@ func (s *server) CreateUser() errHandler {
 			},
 		}
 
-		userToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		tokenString, err := userToken.SignedString(accessKey)
+		tokenString, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(accessKey)
 		if err != nil {
 			return &serverError{err, "Unable to sign token", http.StatusInternalServerError}
 		}
