@@ -130,6 +130,7 @@ func NewServer(auth sidebar.Authenticater, create sidebar.Creater, delete sideba
 	apiRouter.Handle("/ws", s.HandleWS())
 
 	// unprotected
+	router.Handle("/workspaces", s.GetWorkspaces()).Methods("GET")
 	router.Handle("/login", s.Login()).Methods("POST")
 	router.Handle("/refresh_token", s.RefreshToken()).Methods("POST")
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -157,6 +158,19 @@ func (s *server) Serve() http.Handler {
 	n.Use(c)
 	n.UseHandler(s.router)
 	return n
+}
+
+func (s *server) GetWorkspaces() errHandler {
+	return func(w http.ResponseWriter, r *http.Request) *serverError {
+		ws, err := s.Get.GetWorkspaces()
+		if err != nil {
+			return &serverError{err, "Unable to get workspaces", http.StatusInternalServerError}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ws)
+		return nil
+	}
 }
 
 func (s *server) UpdateUserPassword() errHandler {
